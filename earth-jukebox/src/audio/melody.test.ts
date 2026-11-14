@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { groupLevel, type Strike } from '../analysis/detector'
 import { SEASON_CHORDS } from './harmony'
-import { MAX_STEP, MelodyPlanner, REGION_RANGE, regionLadder, regionOf } from './melody'
+import { MAX_STEP, MelodyPlanner, REGION_RANGE, SlotQueue, regionLadder, regionOf } from './melody'
 
 const PC: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
 function strike(p: Partial<Strike> = {}): Strike {
@@ -96,5 +96,40 @@ describe('resolución en la calma', () => {
       }
     }
     expect(resolved).toBe(true)
+  })
+})
+
+describe('cola entre tiempos (arreglo del silencio al inicio)', () => {
+  it('un grupo grande que llega entre dos tiempos fuertes espera y suena en el siguiente', () => {
+    const q = new SlotQueue()
+    const p = new MelodyPlanner()
+    q.add(strike({ energy: 1500 })) // llega en la semicorchea 1
+    let r = p.planSlot(1, q.take(1).candidates, 0, q.take(1).arrivals)
+    expect(r.group).toBeNull()
+    q.endSlot(1, false)
+    for (const sub of [2, 3]) { q.take(sub); q.endSlot(sub, false) }
+    const { candidates, arrivals } = q.take(0) // siguiente tiempo fuerte
+    r = p.planSlot(0, candidates, 0, arrivals)
+    expect(r.group).not.toBeNull()
+  })
+  it('si no hay grupos grandes, en el tiempo fuerte toca el grupo más grande del momento', () => {
+    const q = new SlotQueue()
+    q.add(strike({ energy: 150 }))
+    q.add(strike({ energy: 700 }))
+    const { candidates } = q.take(0)
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0].energy).toBe(700)
+  })
+  it('un grupo grande que no suena se descarta tras una negra', () => {
+    const q = new SlotQueue()
+    q.add(strike({ energy: 1500 }))
+    for (let i = 0; i < 4; i++) { q.take(1); q.endSlot(1, false) }
+    expect(q.take(0).candidates).toHaveLength(0)
+  })
+  it('el grupo de respaldo no se arrastra más allá de un tiempo fuerte', () => {
+    const q = new SlotQueue()
+    q.add(strike({ energy: 300 }))
+    q.take(0); q.endSlot(0, false)
+    expect(q.take(0).candidates).toHaveLength(0)
   })
 })

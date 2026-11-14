@@ -50,6 +50,8 @@ así que las notas nunca chocan entre sí. Los umbrales salen de medir los 29,96
 |---|---|---|
 | **Rayos · melodía** | grupos grandes (≥1000 de amarillo nuevo, ~8 %) | una nota por tiempo, siempre del acorde actual |
 | | cuántos grupos grandes llegan | subdivisión: en calma solo negras, luego corcheas, en lo más intenso semicorcheas |
+| | grupo que llega entre dos tiempos | espera hasta una negra y suena en el siguiente tiempo permitido |
+| | no hay grupos grandes (p. ej. al inicio) | en el tiempo fuerte toca el grupo más grande del momento, suave |
 | | latitud | nota más aguda al norte, más grave al sur |
 | | longitud | audífono izquierdo / derecho (línea vertical al centro del mapa) |
 | | tamaño del grupo | volumen y duración |
@@ -106,6 +108,34 @@ Basado en las guías de Apple (HIG y *Designing Fluid Interfaces*):
   las tormentas; se ve "respirar" de norte a sur con las estaciones.
 - **Movimiento con resortes críticamente amortiguados** (sin rebote), interrumpibles.
 - Modo claro y oscuro automáticos; respeta *reduced motion*, *reduced transparency* y *more contrast*.
+
+## Protección contra saturación y fallos
+
+Problemas verificados (reproducidos en Chrome y medidos con el video real):
+
+- **El sonido moría para siempre ante un solo error**: el bucle de análisis no se volvía a armar si
+  un cuadro fallaba (por ejemplo, el error de Tone.js *"Start time must be strictly greater than
+  previous start time"*). El video seguía, pero el análisis y el audio se detenían hasta recargar.
+- **Saturación**: hasta 28 notas/s en los pasajes densos y 54 % de las notas del piano cortando
+  otra que seguía sonando (22 notas a la vez con 10 voces).
+
+Correcciones (`src/audio/budget.ts`, `stormEngine.ts`, `useLightningLoop.ts`):
+
+| Corrección | Resultado medido |
+|---|---|
+| El bucle siempre se vuelve a armar; cada cuadro y cada nota con su propio manejo de errores | un error se cuenta y el sonido sigue |
+| Perro guardián: si se reproduce y pasan 1.5 s sin cuadros, reinicia el bucle | probado rompiendo el bucle a propósito |
+| Hora de inicio segura por voz (estrictamente creciente, nunca en el pasado) | evita el error de Tone.js |
+| Presupuesto por importancia: destellos ≤ 8/s, acentos ≤ 11/s, acompañantes ≤ 14/s, melodía líder y resolución ≤ 18/s | máx. 14 notas/s; se conserva el 100 % de las notas líder y el 97.8 % de la melodía; lo omitido son casi solo destellos |
+| Voces por disponibilidad: 20 de piano, 8 de vibráfono | notas que cortan otra: de 54 % a 0.5 % |
+| Volumen según densidad (hasta −2 dB) y compresor suave antes del limitador | mismo volumen, la mitad de tiempo pegado al techo |
+
+Regla que se conserva: el presupuesto solo **omite** notas después de que el planificador decide;
+nunca las cambia, duplica ni inventa (probado en `budget.test.ts`).
+
+**Diagnóstico:** abre la app con `?debug` al final de la dirección (por ejemplo
+`http://localhost:5173/?debug`) para ver notas/s, notas omitidas, errores, reinicios del bucle,
+reanudaciones del audio, milisegundos de análisis por cuadro y estado del audio.
 
 ## Accesibilidad
 

@@ -1,5 +1,5 @@
 import type { Strike } from '../analysis/detector'
-import { SEASON_CHORDS, STRUM, chordLadder, dynamics, latToLadderIndex, priority, slotAllows } from './harmony'
+import { SEASON_CHORDS, STRUM, chordLadder, dynamics, isMelodic, latToLadderIndex, priority, slotAllows } from './harmony'
 import { lonToPan } from './mapping'
 
 /**
@@ -56,6 +56,8 @@ export interface NoteEvent {
   pan: number
   timbre: 'marimba' | 'campana'
   role: 'melodia' | 'acento' | 'resolucion'
+  /** true en la nota que lleva la melodía (las demás del arpegio la acompañan). */
+  lead?: boolean
 }
 
 export interface PlannedGroup {
@@ -116,7 +118,7 @@ export class MelodyPlanner {
    * @param pending grupos grandes llegados desde el tiempo anterior
    * @param chordIdx acorde actual de la estación
    */
-  planSlot(sub: number, pending: Strike[], chordIdx: number): { events: NoteEvent[]; group: PlannedGroup | null; resolution: boolean } {
+  planSlot(sub: number, pending: Strike[], chordIdx: number, arrivals = pending.length): { events: NoteEvent[]; group: PlannedGroup | null; resolution: boolean } {
     const events: NoteEvent[] = []
     if (chordIdx !== this.lastChord) {
       // Cambió el acorde: cada voz busca la nota más cercana en la nueva escalera (conducción de voces).
@@ -125,7 +127,9 @@ export class MelodyPlanner {
     }
 
     // 6) Resolución en la calma: promedio corto (~1.4 s) vs. promedio largo (~28 s) de grupos grandes.
-    const n = pending.length
+    // `arrivals` = grupos grandes que LLEGARON en este tiempo (la densidad); `pending` puede incluir
+    // grupos que esperan desde tiempos anteriores (SlotQueue).
+    const n = arrivals
     if (this.shortAvg < 0) this.shortAvg = this.longAvg = n
     this.shortAvg = this.shortAvg * 0.9 + n * 0.1
     this.longAvg = this.longAvg * 0.995 + n * 0.005
@@ -147,7 +151,9 @@ export class MelodyPlanner {
       this.resolved = false
     }
 
-    if (!slotAllows(sub, n)) return { events, group: null, resolution }
+    // En el tiempo fuerte suena cualquier grupo que esté esperando; en las subdivisiones manda la densidad.
+    const allowed = pending.length > 0 && (sub === 0 || slotAllows(sub, n))
+    if (!allowed) return { events, group: null, resolution }
 
     // 3) Conversación por frases: la región que tiene el turno sigue mientras tenga rayos grandes y no
     //    haya completado su frase; al terminarla, contesta otra región con rayos grandes.
@@ -196,6 +202,7 @@ export class MelodyPlanner {
         pan,
         timbre,
         role: 'melodia',
+        lead: isMelody,
       })
     })
     if (s.isNew) {
@@ -238,4 +245,59 @@ export class MelodyPlanner {
 const PC: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
 function pitchClassOfRoot(chordIdx: number): number {
   return PC[SEASON_CHORDS[chordIdx].tones[0]]
+}
+
+/** Cuántos tiempos del pulso puede esperar un grupo grande antes de descartarse (una negra). */
+export const CARRY_SLOTS = 4
+
+/**
+ * Cola de grupos entre tiempos del pulso.
+ *
+ * Arregla dos silencios medidos al inicio del video (cuando empiezan a aparecer los rayos):
+ *  1. Un grupo grande que llegaba ENTRE dos tiempos fuertes se descartaba. Ahora espera hasta
+ *     una negra (CARRY_SLOTS) y suena en el siguiente tiempo permitido.
+ *  2. Los primeros rayos son grupos chicos o medianos (< 1000) y nunca tocaban melodía. Ahora, si en
+ *     un tiempo fuerte no hay ningún grupo grande, toca el grupo más grande de ese momento (suave,
+ *     porque su volumen sigue dependiendo de su tamaño).
+ */
+export class SlotQueue {
+  private big: { s: Strike; slot: number }[] = []
+  private fallback: Strike | null = null
+  private arrivals = 0
+  private slot = 0
+
+  add(s: Strike) {
+    if (isMelodic(s)) {
+      this.big.push({ s, slot: this.slot })
+      this.arrivals++
+      if (this.big.length > 48) {
+        this.big.sort((a, b) => priority(b.s) - priority(a.s))
+        this.big.length = 48
+      }
+    } else if (!this.fallback || s.energy > this.fallback.energy) {
+      this.fallback = s
+    }
+  }
+
+  /** Candidatos para este tiempo y cuántos grupos grandes llegaron en él. */
+  take(sub: number): { candidates: Strike[]; arrivals: number } {
+    this.big = this.big.filter((x) => this.slot - x.slot < CARRY_SLOTS)
+    let candidates = this.big.map((x) => x.s)
+    if (candidates.length === 0 && sub === 0 && this.fallback) candidates = [this.fallback]
+    return { candidates, arrivals: this.arrivals }
+  }
+
+  /** Cierra el tiempo: si sonó un grupo se vacía la cola; si no, los grandes siguen esperando. */
+  endSlot(sub: number, played: boolean) {
+    if (played) this.big = []
+    if (played || sub === 0) this.fallback = null
+    this.arrivals = 0
+    this.slot++
+  }
+
+  reset() {
+    this.big = []
+    this.fallback = null
+    this.arrivals = 0
+  }
 }

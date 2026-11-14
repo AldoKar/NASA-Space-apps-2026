@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatLat, type FrameFeatures } from './analysis/detector'
-import { useLightningLoop, type LoopTick } from './analysis/useLightningLoop'
-import { StormEngine, type LayerState } from './audio/stormEngine'
+import { loopStats, useLightningLoop, type LoopTick } from './analysis/useLightningLoop'
+import { StormEngine, type EngineStats, type LayerState } from './audio/stormEngine'
 import { REGION_NAME } from './audio/melody'
 import { StrikeOverlay, type StrikeOverlayHandle } from './components/StrikeOverlay'
 import { activityLabel, describeMoment, hemisphereLabel, sideLabel } from './describe'
@@ -32,6 +32,8 @@ export default function App() {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
   const overlayRef = useRef<StrikeOverlayHandle>(null)
   const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
+  const debug = useMemo(() => new URLSearchParams(window.location.search).has('debug'), [])
+  const [diag, setDiag] = useState<(EngineStats & { frameErrors: number; restarts: number; analysisMs: number }) | null>(null)
 
   const [playing, setPlaying] = useState(false)
   const [layers, setLayers] = useState<LayerState>({ strikes: true, thunder: true, seasons: true })
@@ -88,6 +90,7 @@ export default function App() {
         level: engine.getLevel(),
         audio: engine.isStarted ? engine.contextState : 'off',
       })
+      if (debug) setDiag({ ...engine.getStats(), ...loopStats })
       if (announce && playing && f.activity > 0.01) {
         const key = `${activityLabel(f.activity)}|${hemisphereLabel(f.meanLat)}`
         if (key !== lastAnnounce.current.key && now - lastAnnounce.current.at > 8000) {
@@ -97,7 +100,7 @@ export default function App() {
       }
     }, 200)
     return () => window.clearInterval(id)
-  }, [video, announce, playing, engine])
+  }, [video, announce, playing, engine, debug])
 
   const progressPct = shown.duration ? (shown.time / shown.duration) * 100 : 0
 
@@ -112,7 +115,8 @@ export default function App() {
     if (video.paused) {
       await startAudio()
       if (video.ended) video.currentTime = 0
-      await video.play()
+      // Si se pausa antes de que arranque, el navegador cancela play(): no es un error.
+      await video.play().catch(() => {})
     } else {
       video.pause()
     }
@@ -384,6 +388,18 @@ export default function App() {
             </button>
             <Switch label="Anunciar cambios" description="Para lectores de pantalla" checked={announce} onChange={setAnnounce} />
           </Section>
+          {debug && diag && (
+            <Section title="Diagnóstico" footer="Visible solo con ?debug en la dirección. Errores debe quedarse en 0 y los reinicios del bucle no deben subir.">
+              <DiagRow label="Notas por segundo" value={`${diag.notesPerSec}`} />
+              <DiagRow label="Notas omitidas por saturación" value={`${diag.dropped} de ${diag.dropped + diag.admitted}`} />
+              <DiagRow label="Errores" value={`${diag.errors}`} />
+              {diag.lastError && <DiagRow label="Último error" value={diag.lastError} />}
+              <DiagRow label="Reinicios del bucle" value={`${diag.restarts}`} />
+              <DiagRow label="Reanudaciones de audio" value={`${diag.resumes}`} />
+              <DiagRow label="Análisis por cuadro" value={`${diag.analysisMs.toFixed(1)} ms`} />
+              <DiagRow label="Contexto de audio" value={diag.context} />
+            </Section>
+          )}
         </aside>
       </main>
 
@@ -394,6 +410,15 @@ export default function App() {
       </footer>
 
       <div className="sr-only" role="status" aria-live="polite">{liveText}</div>
+    </div>
+  )
+}
+
+function DiagRow(props: { label: string; value: string }) {
+  return (
+    <div className="row">
+      <span className="row-label">{props.label}</span>
+      <span className="row-value tabular">{props.value}</span>
     </div>
   )
 }
