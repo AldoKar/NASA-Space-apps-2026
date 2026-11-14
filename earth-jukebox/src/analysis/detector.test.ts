@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ANALYSIS_H, ANALYSIS_W, LightningDetector, formatLat, yellowness } from './detector'
+import { ANALYSIS_H, ANALYSIS_W, LightningDetector, formatLat, groupLevel, yellowness } from './detector'
 
 const GRAY = [72, 72, 72]
 const BOLT = [165, 158, 26] // color medido de los rayos en el video de la NASA
@@ -84,5 +84,41 @@ describe('formatLat', () => {
   it('formatea norte y sur', () => {
     expect(formatLat(23.4)).toBe('23° N')
     expect(formatLat(-12.6)).toBe('13° S')
+  })
+})
+
+describe('LightningDetector: datos por grupo', () => {
+  it('cuenta vecinas activas y marca tormentas nuevas', () => {
+    const d = new LightningDetector()
+    d.analyze(frame([]), 0)
+    // tres puntos en celdas contiguas (cada celda = 5.6°)
+    // centros de celda: lon 8.4375, 14.0625, 19.6875 · lat 8.4375
+    const f = d.analyze(frame([{ lat: 8.4375, lon: 8.4375 }, { lat: 8.4375, lon: 14.0625 }, { lat: 8.4375, lon: 19.6875 }], 6), 1 / 30)
+    expect(f.strikes.length).toBe(3)
+    const mid = f.strikes.find((s) => s.lon > 12 && s.lon < 16)!
+    expect(mid.neighbors).toBe(2)
+    expect(f.strikes.every((s) => s.isNew)).toBe(true)
+  })
+  it('una zona ya activa no es "tormenta nueva"', () => {
+    const d = new LightningDetector()
+    d.analyze(frame([{ lat: 8.4375, lon: 8.4375 }], 3), 0)
+    const f = d.analyze(frame([{ lat: 8.4375, lon: 8.4375 }, { lat: 7.5, lon: 9 }], 3), 1 / 30)
+    expect(f.strikes.length).toBe(1)
+    expect(f.strikes[0].isNew).toBe(false)
+  })
+  it('distingue tierra (Congo) y océano (Pacífico)', () => {
+    const d = new LightningDetector()
+    d.analyze(frame([]), 0)
+    const f = d.analyze(frame([{ lat: 2.8125, lon: 25.3125 }, { lat: 2.8125, lon: -140.625 }], 6), 1 / 30)
+    const congo = f.strikes.find((s) => s.lon > 0)!
+    const pacific = f.strikes.find((s) => s.lon < 0)!
+    expect(congo.land).toBe(true)
+    expect(pacific.land).toBe(false)
+  })
+  it('clasifica el tamaño del grupo con los umbrales medidos', () => {
+    expect(groupLevel(200)).toBe('chico')
+    expect(groupLevel(600)).toBe('mediano')
+    expect(groupLevel(1500)).toBe('grande')
+    expect(groupLevel(3000)).toBe('muy grande')
   })
 })

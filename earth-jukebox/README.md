@@ -43,15 +43,51 @@ video NASA ──► canvas oculto 1024×512 ──► detector (píxeles → n�
 
 ## Reglas de sonificación
 
-| Capa | Dato visual | Sonido |
+Todo suena **sobre un pulso** (semicorcheas a 105 BPM) y **dentro del acorde de la estación**,
+así que las notas nunca chocan entre sí. Los umbrales salen de medir los 29,963 grupos de rayos del video.
+
+| Capa | Dato del video | Sonido |
 |---|---|---|
-| **Rayos** | celda con rayos nuevos | nota tipo campana eléctrica (escala pentatónica de Re menor) |
-| | latitud | altura: norte = agudo, sur = grave |
-| | longitud | paneo: oeste = izquierda, este = derecha |
-| | cantidad de rayos nuevos | notas por segundo (≈2 a 12) + chisporroteo de fondo |
-| **Truenos** | grupo grande de rayos en una celda | retumbo grave con 0.25–0.6 s de retraso |
+| **Rayos · melodía** | grupos grandes (≥1000 de amarillo nuevo, ~8 %) | una nota por tiempo, siempre del acorde actual |
+| | cuántos grupos grandes llegan | subdivisión: en calma solo negras, luego corcheas, en lo más intenso semicorcheas |
+| | latitud | nota más aguda al norte, más grave al sur |
+| | longitud | audífono izquierdo / derecho (línea vertical al centro del mapa) |
+| | tamaño del grupo | volumen y duración |
+| | celdas vecinas activas (tamaño de tormenta) | 1 nota (aislado), 2 notas (1–2 vecinas), arpegio de 3 (3+) |
+| | tierra u océano (máscara medida del fondo del mapa) | piano eléctrico suave tipo Rhodes (tierra) · vibráfono (océano) |
+| | tormenta nueva (zona y vecinas sin rayos) | campanita aguda de acento |
+| **Rayos · textura** | grupos chicos y medianos (~92 %) | 0–2 destellos agudos por tiempo, en notas del acorde |
+| **Truenos** | grupos muy grandes (≥2500) | retumbo grave en la nota base del acorde (máx. 1 cada 4 s) |
 | **Estaciones** | latitud promedio de todos los rayos | acorde de fondo (Re menor en el sur → Do mayor en el norte) |
 | | actividad total | brillo del acorde (filtro) |
+
+### Timbre
+
+Todo es síntesis (sin muestras de audio): funciona sin internet y sin licencias de terceros.
+Piano eléctrico FM 1:1 que suena más brillante cuanto más fuerte se toca, vibráfono con trémolo lento,
+destellos en notas del acorde, colchón de tres osciladores ligeramente desafinados, coro suave,
+eco sincronizado al pulso (corchea con puntillo) y sala amplia.
+
+### Cómo se relacionan las notas entre sí (`src/audio/melody.ts`)
+
+| Regla | Dato de los rayos | Efecto musical |
+|---|---|---|
+| Voz por región | América · Europa y África · Asia y Oceanía | tres voces (grave, media, aguda), cada una de su lado en los audífonos |
+| Movimiento por pasos | latitud | la voz camina hacia el norte (sube) o el sur (baja), máx. 2 notas del acorde por paso |
+| Conversación por frases | regiones con grupos grandes a la vez | una región toca hasta 4 notas y contesta otra |
+| Arpegio con dirección | la tormenta crece o se encoge (zonas vecinas) | arpegio hacia arriba o hacia abajo |
+| Resolución | la actividad cae muy por debajo de su promedio | suena la nota base del acorde y las voces regresan a ella |
+| Conducción de voces | cambia la estación (acorde) | cada voz pasa a la nota más cercana del nuevo acorde |
+
+Comparación sobre el video completo (`validate/melody.real.test.ts`): antes, 55 % de los saltos entre
+notas eran grandes (>7 semitonos); ahora, dentro de cada voz, solo 2–8 %, con un salto promedio de ~4
+semitonos. Las regiones cambian en el 41 % de las notas (frases de 2–3 notas) y hay ~5 resoluciones.
+
+Simulación sobre el video completo (`npm run validate`): ~3 grupos y ~6 notas por segundo; los
+silencios van de 76 % en los tramos tranquilos a 43 % en los más intensos.
+
+Limitación honesta: el video no muestra la potencia de cada rayo individual (la NASA indica que
+cada punto tiene solo latitud, longitud y hora). Lo que se mide es cuántos rayos aparecen juntos.
 
 **Validación con el video real:** la latitud promedio medida oscila cada año entre
 ≈ +32° (verano boreal) y ≈ −14° (verano austral): ese es el ciclo de las estaciones que se

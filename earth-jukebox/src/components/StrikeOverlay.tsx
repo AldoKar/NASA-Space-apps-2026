@@ -1,8 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import type { Strike } from '../analysis/detector'
+import type { PlayedStrike } from '../audio/stormEngine'
 
 export interface StrikeOverlayHandle {
-  addStrikes: (s: Strike[]) => void
+  addStrikes: (s: PlayedStrike[]) => void
   addThunder: (s: Strike) => void
 }
 
@@ -11,6 +12,9 @@ interface Ring {
   y: number
   born: number
   big: boolean
+  /** 1 = grande, 1.6 = muy grande */
+  scale: number
+  ocean: boolean
 }
 
 /**
@@ -25,11 +29,12 @@ export const StrikeOverlay = forwardRef<StrikeOverlayHandle, { reducedMotion: bo
     useImperativeHandle(ref, () => ({
       addStrikes(s) {
         const now = performance.now()
-        for (const k of s) rings.current.push({ x: k.x, y: k.y, born: now, big: false })
+        for (const k of s)
+          rings.current.push({ x: k.x, y: k.y, born: now, big: false, scale: k.level === 'muy grande' ? 1.6 : 1, ocean: !k.land })
         if (rings.current.length > 200) rings.current.splice(0, rings.current.length - 200)
       },
       addThunder(s) {
-        rings.current.push({ x: s.x, y: s.y, born: performance.now(), big: true })
+        rings.current.push({ x: s.x, y: s.y, born: performance.now(), big: true, scale: 1, ocean: false })
       },
     }))
 
@@ -54,12 +59,14 @@ export const StrikeOverlay = forwardRef<StrikeOverlayHandle, { reducedMotion: bo
           for (const r of rings.current) {
             const t = (now - r.born) / (r.big ? life * 2 : life)
             const alpha = 1 - t
-            const radius = reducedMotion ? (r.big ? 10 : 5) : (r.big ? 12 + t * 60 : 3 + t * 16)
+            const radius = (reducedMotion ? (r.big ? 10 : 5) : r.big ? 12 + t * 60 : 3 + t * 16) * r.scale
             ctx.beginPath()
             ctx.arc(r.x * w, r.y * h, radius, 0, Math.PI * 2)
             ctx.strokeStyle = r.big
               ? `rgba(160, 200, 255, ${alpha * 0.9})`
-              : `rgba(255, 245, 190, ${alpha})`
+              : r.ocean
+                ? `rgba(130, 220, 255, ${alpha})`
+                : `rgba(255, 245, 190, ${alpha})`
             ctx.lineWidth = r.big ? 2.5 : 1.5
             ctx.stroke()
           }

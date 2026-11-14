@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatLat, type FrameFeatures } from './analysis/detector'
 import { useLightningLoop, type LoopTick } from './analysis/useLightningLoop'
 import { StormEngine, type LayerState } from './audio/stormEngine'
+import { REGION_NAME } from './audio/melody'
 import { StrikeOverlay, type StrikeOverlayHandle } from './components/StrikeOverlay'
 import { activityLabel, describeMoment, hemisphereLabel, sideLabel } from './describe'
 import { TRACKS } from './tracks'
@@ -39,8 +40,8 @@ export default function App() {
   const [announce, setAnnounce] = useState(true)
   const [videoError, setVideoError] = useState(false)
 
-  const [shown, setShown] = useState({ f: EMPTY, chord: '', notesPerSec: 0, time: 0, duration: 0, level: 0, audio: 'off', balance: null as number | null })
-  const latest = useRef({ f: EMPTY, chord: '', time: 0, balance: null as number | null })
+  const [shown, setShown] = useState({ f: EMPTY, chord: '', notesPerSec: 0, time: 0, duration: 0, level: 0, audio: 'off', balance: null as number | null, last: '' })
+  const latest = useRef({ f: EMPTY, chord: '', time: 0, balance: null as number | null, last: '' })
   const notesWindow = useRef<number[]>([])
   const [liveText, setLiveText] = useState('')
   const lastAnnounce = useRef({ key: '', at: 0 })
@@ -56,7 +57,14 @@ export default function App() {
     // Balance suavizado para que el indicador no tiemble.
     const prevB = latest.current.balance
     const balance = t.balance === null ? prevB : prevB === null ? t.balance : prevB * 0.85 + t.balance * 0.15
-    latest.current = { f: t.features, chord: t.chord || latest.current.chord, time: t.videoTime, balance }
+    let last = latest.current.last
+    const p = t.played[t.played.length - 1]
+    if (p) {
+      const arrow = p.direction === 1 ? ' ↑' : p.direction === -1 ? ' ↓' : ''
+      const kind = p.voices === 3 ? 'arpegio' : p.voices === 2 ? 'dos notas' : 'una nota'
+      last = `${REGION_NAME[p.region]} · ${p.level} · ${p.land ? 'tierra' : 'océano'} · ${kind}${arrow}${p.isNew ? ' · nueva' : ''}`
+    }
+    latest.current = { f: t.features, chord: t.chord || latest.current.chord, time: t.videoTime, balance, last }
     if (t.played.length) {
       overlayRef.current?.addStrikes(t.played)
       const now = performance.now()
@@ -72,9 +80,9 @@ export default function App() {
     const id = window.setInterval(() => {
       const now = performance.now()
       notesWindow.current = notesWindow.current.filter((x) => now - x < 1000)
-      const { f, chord, time, balance } = latest.current
+      const { f, chord, time, balance, last } = latest.current
       setShown({
-        f, chord, time, balance,
+        f, chord, time, balance, last,
         notesPerSec: notesWindow.current.length,
         duration: video?.duration || 0,
         level: engine.getLevel(),
@@ -276,18 +284,18 @@ export default function App() {
         <aside className="inspector" aria-label="Lo que estás escuchando">
           <Section
             title="Capas de sonido"
-            footer="Usa audífonos: la mitad izquierda del mapa suena en el oído izquierdo y la derecha en el derecho. Norte suena agudo y sur grave."
+            footer="Cada región tiene su voz: América grave (izquierda), Europa y África media (centro), Asia y Oceanía aguda (derecha), y se contestan entre sí. La melodía sube cuando las tormentas van al norte. Una tormenta que crece arpegia hacia arriba; una que se encoge, hacia abajo. Sobre tierra suena un piano eléctrico suave y sobre el océano un vibráfono."
           >
             <Switch
-              label="Rayos" description="Cada rayo nuevo es una nota" shortcut="1"
+              label="Rayos" description="Grupos grandes: melodía · chicos: destellos agudos" shortcut="1"
               checked={layers.strikes} onChange={(v) => setLayer('strikes', v)}
             />
             <Switch
-              label="Truenos" description="Grupos grandes retumban con retraso" shortcut="2"
+              label="Truenos" description="Grupos muy grandes retumban en el tono del acorde" shortcut="2"
               checked={layers.thunder} onChange={(v) => setLayer('thunder', v)}
             />
             <Switch
-              label="Estaciones" description="El acorde sigue a las tormentas" shortcut="3"
+              label="Estaciones" description="Acorde de fondo; la melodía usa sus notas" shortcut="3"
               checked={layers.seasons} onChange={(v) => setLayer('seasons', v)}
             />
           </Section>
@@ -303,9 +311,9 @@ export default function App() {
             <div className="row stack">
               <div className="row-head">
                 <span className="row-label">Rayos nuevos</span>
-                <span className="row-value tabular">{shown.notesPerSec} notas/s</span>
+                <span className="row-value tabular">{shown.notesPerSec} grupos/s</span>
               </div>
-              <Gauge value={newSpring} label="Intensidad de rayos nuevos" valueText={`${shown.notesPerSec} notas por segundo`} />
+              <Gauge value={newSpring} label="Intensidad de rayos nuevos" valueText={`${shown.notesPerSec} grupos grandes por segundo`} />
             </div>
             <div className="row stack">
               <div className="row-head">
@@ -335,6 +343,12 @@ export default function App() {
                 <span className="row-sub">{hasData ? hemisphereLabel(f.meanLat) : 'Sin datos aún'}</span>
               </div>
               <span className="row-value tabular">{hasData ? formatLat(f.meanLat) : '—'}</span>
+            </div>
+            <div className="row">
+              <div className="row-text">
+                <span className="row-label">Último grupo grande</span>
+                <span className="row-sub">{shown.last || 'Esperando…'}</span>
+              </div>
             </div>
             <div className="row">
               <span className="row-label">Acorde</span>

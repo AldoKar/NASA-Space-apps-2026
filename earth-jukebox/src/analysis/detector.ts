@@ -1,3 +1,5 @@
+import { isLandCell } from './landMask'
+
 /**
  * Detector de rayos — convierte un cuadro del video de la NASA en números.
  *
@@ -50,7 +52,29 @@ export interface Strike {
   lon: number
   /** Cuánto aumentó el amarillo en la celda (más grande = más rayos juntos). */
   energy: number
+  /** Tamaño del grupo según la energía (umbrales medidos en el video). */
+  level: GroupLevel
+  /** Celdas vecinas (de 8) que también tienen rayos nuevos en este cuadro → tamaño de la tormenta. */
+  neighbors: number
+  /** Tormenta nueva: la celda y sus vecinas no tenían rayos visibles antes (≈8.5 % de los eventos). */
+  isNew: boolean
+  /** true si la celda es tierra (≈88 % de los eventos), false si es océano. */
+  land: boolean
 }
+
+/**
+ * Niveles de tamaño de grupo. Umbrales medidos sobre los 29,963 eventos del video completo:
+ *   chico 100–400 (68 %), mediano 400–1000 (24 %), grande 1000–2500 (7.4 %), muy grande >2500 (0.6 %).
+ */
+export type GroupLevel = 'chico' | 'mediano' | 'grande' | 'muy grande'
+export function groupLevel(energy: number): GroupLevel {
+  if (energy >= 2500) return 'muy grande'
+  if (energy >= 1000) return 'grande'
+  if (energy >= 400) return 'mediano'
+  return 'chico'
+}
+/** Por debajo de esto una celda se considera "sin rayos visibles" para detectar tormentas nuevas. */
+const QUIET_CELL = 60
 
 export interface FrameFeatures {
   /** Actividad global de los últimos 10 días, 0..1. */
@@ -80,6 +104,7 @@ export class LightningDetector {
   private prev: Float32Array<ArrayBuffer> | null = null
   private cur: Float32Array<ArrayBuffer> = new Float32Array(GRID_W * GRID_H)
   private cooldownUntil = new Float32Array(GRID_W * GRID_H)
+  private active = new Uint8Array(GRID_W * GRID_H)
   private lastTime = -1
 
   /** Olvida el cuadro anterior (al saltar en el video o reiniciar). */
@@ -128,24 +153,49 @@ export class LightningDetector {
     let peakEnergy = 0
 
     if (!jumped && this.prev) {
+      const prev = this.prev
+      // 1) Qué celdas tienen rayos nuevos en este cuadro.
+      const active = this.active
+      active.fill(0)
+      for (let k = 0; k < cells.length; k++) {
+        const d = cells[k] - prev[k]
+        if (d > MIN_CELL_DELTA) {
+          active[k] = 1
+          newEnergy += d
+        }
+      }
+      // 2) Cada celda activa (fuera de su tiempo de espera) es un evento.
       for (let gy = 0; gy < GRID_H; gy++) {
         for (let gx = 0; gx < GRID_W; gx++) {
           const k = gy * GRID_W + gx
-          const d = cells[k] - this.prev[k]
-          if (d > MIN_CELL_DELTA) {
-            newEnergy += d
-            if (videoTime >= this.cooldownUntil[k]) {
-              this.cooldownUntil[k] = videoTime + CELL_COOLDOWN
-              strikes.push({
-                x: (gx + 0.5) / GRID_W,
-                y: (gy + 0.5) / GRID_H,
-                lat: cellLat(gy),
-                lon: cellLon(gx),
-                energy: d,
-              })
-              if (d > peakEnergy) peakEnergy = d
+          if (!active[k] || videoTime < this.cooldownUntil[k]) continue
+          this.cooldownUntil[k] = videoTime + CELL_COOLDOWN
+          const d = cells[k] - prev[k]
+          let neighbors = 0
+          let quiet = prev[k] < QUIET_CELL
+          for (let dy = -1; dy <= 1; dy++) {
+            const ny = gy + dy
+            if (ny < 0 || ny >= GRID_H) continue
+            for (let dx = -1; dx <= 1; dx++) {
+              if (!dx && !dy) continue
+              const nx = (gx + dx + GRID_W) % GRID_W // el mapa da la vuelta en longitud
+              const nk = ny * GRID_W + nx
+              if (active[nk]) neighbors++
+              if (prev[nk] >= QUIET_CELL) quiet = false
             }
           }
+          strikes.push({
+            x: (gx + 0.5) / GRID_W,
+            y: (gy + 0.5) / GRID_H,
+            lat: cellLat(gy),
+            lon: cellLon(gx),
+            energy: d,
+            level: groupLevel(d),
+            neighbors,
+            isNew: quiet,
+            land: isLandCell(gx, gy),
+          })
+          if (d > peakEnergy) peakEnergy = d
         }
       }
       strikes.sort((a, b) => b.energy - a.energy)

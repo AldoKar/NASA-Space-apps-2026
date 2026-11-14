@@ -1,46 +1,31 @@
 import * as Tone from 'tone'
 import type { FrameFeatures, Strike } from '../analysis/detector'
+import {
+  SEASON_CHORDS, SLOT, chordIndexFor, chordLadder, isMelodic, midiToNote, priority, textureTicks,
+} from './harmony'
+import { MelodyPlanner, type Region } from './melody'
 import { balanceOf, lonToPan } from './mapping'
 
 /**
  * Motor de sonido "Tormentas del planeta".
  *
- * Reglas de traducción imagen → sonido (las mismas que se explican en la interfaz):
- *  RAYOS      cada rayo nuevo = una nota corta tipo campana eléctrica.
- *             - latitud  → altura (norte = agudo, sur = grave)
- *             - longitud → paneo: el mapa se parte con una línea vertical al centro;
- *               izquierda del mapa = audífono izquierdo, derecha = derecho (ver mapping.ts)
- *             - energía  → volumen
- *             La cantidad de rayos nuevos controla cuántas notas por segundo
- *             y un "chisporroteo" de fondo.
- *  TRUENOS    cuando aparece un grupo grande de rayos juntos, suena un retumbo
- *             grave con retraso (primero se ve el rayo, luego llega el trueno).
- *  ESTACIONES un acorde de fondo cuya nota base sigue la latitud promedio de las
- *             tormentas: al moverse hacia el norte o el sur con las estaciones,
- *             el acorde sube o baja. La actividad total abre el filtro (más brillo).
+ * Todo suena sobre un pulso (semicorcheas a 105 BPM) y en armonía con el acorde de la estación.
+ *
+ *  RAYOS (melodía)   solo los grupos grandes (≥1000; ~8 % de los eventos), uno por tiempo; la
+ *                    intensidad decide si suenan negras, corcheas o semicorcheas (slotAllows).
+ *                    Las notas se relacionan entre sí (melody.ts): voz por región, movimiento por
+ *                    pasos, conversación entre regiones, arpegios que suben o bajan, resolución.
+ *                    - latitud     → hacia dónde camina la melodía (norte = sube)
+ *                    - longitud    → audífono izquierdo/derecho (mapping.ts)
+ *                    - tamaño      → volumen y duración
+ *                    - tormenta    → 1 nota (aislado), 2 notas (1–2 vecinas) o arpegio (3+ vecinas)
+ *                    - tierra      → piano eléctrico suave · océano → vibráfono (más raro)
+ *                    - tormenta nueva → campanita aguda de acento
+ *  RAYOS (textura)   grupos chicos y medianos (~92 %) → destellos agudos en notas del acorde; su número
+ *                    sube con la cantidad de rayos.
+ *  TRUENOS           grupos muy grandes (≥2500) → retumbo grave EN LA NOTA BASE del acorde.
+ *  ESTACIONES        acorde de fondo según la latitud promedio de todas las tormentas.
  */
-
-/** Escala pentatónica de Re menor: casi imposible que suene "mal". */
-const STRIKE_SCALE = [
-  'D3', 'F3', 'G3', 'A3', 'C4',
-  'D4', 'F4', 'G4', 'A4', 'C5',
-  'D5', 'F5', 'G5', 'A5', 'C6',
-]
-/** Rango de latitudes donde el sensor LIS ve rayos. */
-const LAT_MIN = -50
-const LAT_MAX = 50
-
-/**
- * Acordes del fondo, de sur a norte. La latitud promedio medida en el video
- * oscila aprox. entre -15° (verano austral) y +33° (verano boreal).
- */
-const SEASON_CHORDS: { maxLat: number; notes: string[]; name: string }[] = [
-  { maxLat: -8, notes: ['D2', 'A2', 'F3', 'C4'], name: 'Re menor' },
-  { maxLat: 4, notes: ['F2', 'C3', 'A3', 'E4'], name: 'Fa mayor' },
-  { maxLat: 16, notes: ['G2', 'D3', 'A3', 'F4'], name: 'Sol suspendido' },
-  { maxLat: 26, notes: ['A2', 'E3', 'C4', 'G4'], name: 'La menor' },
-  { maxLat: 999, notes: ['C3', 'G3', 'E4', 'D5'], name: 'Do mayor' },
-]
 
 export interface LayerState {
   strikes: boolean
@@ -50,17 +35,19 @@ export interface LayerState {
 
 export interface PlayedStrike extends Strike {
   note: string
+  voices: number
+  region: Region
+  /** 1 arpegio sube, -1 baja, 0 una nota */
+  direction: 1 | -1 | 0
 }
 
-const VOICE_COUNT = 10
-const MAX_NOTES_PER_SECOND = 14
-const MIN_NOTES_PER_SECOND = 1.5
-const THUNDER_ENERGY = 3000
-const THUNDER_COOLDOWN = 1.5
+type Voice = { synth: Tone.FMSynth; panner: Tone.Panner }
 
-function clamp(v: number, a: number, b: number) {
-  return Math.max(a, Math.min(b, v))
-}
+const LOOKAHEAD = 0.12
+const THUNDER_COOLDOWN = 4
+const THUNDER_ENERGY = 2500
+/** Brillo base del piano eléctrico (índice de modulación FM). */
+const RHODES_BRIGHTNESS = 2.4
 
 export class StormEngine {
   private started = false
@@ -69,20 +56,29 @@ export class StormEngine {
   private strikeBus!: Tone.Volume
   private thunderBus!: Tone.Volume
   private seasonBus!: Tone.Volume
-  private voices: { synth: Tone.FMSynth; panner: Tone.Panner }[] = []
-  private nextVoice = 0
-  private crackle!: Tone.Noise
-  private crackleGain!: Tone.Gain
-  private cracklePanner!: Tone.Panner
+  private mallets: Voice[] = []
+  private bells: Voice[] = []
+  private nextMallet = 0
+  private nextBell = 0
+  private sparkle!: Tone.PolySynth
+  private tickPanner!: Tone.Panner
   private thunderSynth!: Tone.MembraneSynth
   private thunderNoise!: Tone.NoiseSynth
   private thunderPanner!: Tone.Panner
   private pad!: Tone.PolySynth
   private padFilter!: Tone.Filter
   private currentChord = -1
-  private noteBudget = 0
   private lastThunder = -Infinity
   private layers: LayerState = { strikes: true, thunder: true, seasons: true }
+
+  // Planificador del pulso
+  private nextSlot = -1
+  private pending: Strike[] = []
+  private smallCount = 0
+  private smallBalance: Strike[] = []
+  private planner = new MelodyPlanner()
+  /** Veces que la melodía resolvió en la calma (para la interfaz). */
+  resolutions = 0
 
   /** Nivel de salida 0..1 (para el indicador de audio). */
   getLevel(): number {
@@ -108,71 +104,93 @@ export class StormEngine {
     this.master = new Tone.Volume(0).connect(limiter)
     this.meter = new Tone.Meter({ normalRange: true, smoothing: 0.6, channelCount: 2 })
     limiter.connect(this.meter)
-    const reverb = new Tone.Reverb({ decay: 4, wet: 0.2 }).connect(this.master)
+    // Sala más amplia y cálida (pre-delay corto para que el ataque se oiga claro).
+    const reverb = new Tone.Reverb({ decay: 4.5, preDelay: 0.03, wet: 0.3 }).connect(this.master)
 
-    // --- Rayos ---
-    this.strikeBus = new Tone.Volume(4).connect(reverb)
-    for (let i = 0; i < VOICE_COUNT; i++) {
+    // --- Rayos: melodía ---
+    // Cadena: voces → coro (ensancha y da calidez) → eco a corchea con puntillo (sincronizado
+    // con el pulso, muy suave) → sala.
+    const echo = new Tone.FeedbackDelay({ delayTime: SLOT * 3, feedback: 0.22, wet: 0.16 }).connect(reverb)
+    const chorus = new Tone.Chorus({ frequency: 0.8, delayTime: 3.5, depth: 0.45, spread: 50, wet: 0.4 }).connect(echo).start()
+    this.strikeBus = new Tone.Volume(4).connect(chorus)
+    // Tierra: piano eléctrico suave tipo Rhodes (FM 1:1; el brillo baja tras el ataque).
+    for (let i = 0; i < 10; i++) {
       const panner = new Tone.Panner(0).connect(this.strikeBus)
       const synth = new Tone.FMSynth({
-        harmonicity: 3.01,
-        modulationIndex: 9,
+        harmonicity: 1,
+        modulationIndex: RHODES_BRIGHTNESS,
         oscillator: { type: 'sine' },
-        modulation: { type: 'square' },
-        envelope: { attack: 0.002, decay: 0.35, sustain: 0, release: 0.25 },
-        modulationEnvelope: { attack: 0.002, decay: 0.12, sustain: 0, release: 0.1 },
+        modulation: { type: 'sine' },
+        envelope: { attack: 0.004, decay: 1.3, sustain: 0.12, release: 1.0 },
+        modulationEnvelope: { attack: 0.002, decay: 0.45, sustain: 0.08, release: 0.5 },
       }).connect(panner)
-      this.voices.push({ synth, panner })
+      this.mallets.push({ synth, panner })
     }
-    // Chisporroteo: ruido filtrado cuyo volumen sigue la cantidad de rayos nuevos.
-    const crackleFilter = new Tone.Filter({ type: 'bandpass', frequency: 3200, Q: 0.8 })
-    // El chisporroteo también se mueve al lado donde están cayendo los rayos nuevos.
-    this.cracklePanner = new Tone.Panner(0).connect(this.strikeBus)
-    this.crackleGain = new Tone.Gain(0).connect(this.cracklePanner)
-    const crackleTremolo = new Tone.Tremolo({ frequency: 13, depth: 0.9, spread: 0 }).start()
-    this.crackle = new Tone.Noise('white')
-    this.crackle.chain(crackleFilter, crackleTremolo, this.crackleGain)
-    this.crackle.start()
+    // Océano y acentos: vibráfono (campana suave con trémolo lento, como el motor del vibráfono).
+    const vibes = new Tone.Tremolo({ frequency: 4.5, depth: 0.3, spread: 0 }).connect(this.strikeBus).start()
+    for (let i = 0; i < 4; i++) {
+      const panner = new Tone.Panner(0).connect(vibes)
+      const synth = new Tone.FMSynth({
+        harmonicity: 4,
+        modulationIndex: 0.9,
+        oscillator: { type: 'sine' },
+        modulation: { type: 'sine' },
+        envelope: { attack: 0.008, decay: 2.4, sustain: 0, release: 1.8 },
+        modulationEnvelope: { attack: 0.004, decay: 0.25, sustain: 0, release: 0.3 },
+        volume: -3,
+      }).connect(panner)
+      this.bells.push({ synth, panner })
+    }
+    // --- Rayos: textura → destellos agudos y suaves EN NOTAS DEL ACORDE (como lluvia brillante) ---
+    this.tickPanner = new Tone.Panner(0).connect(this.strikeBus)
+    this.sparkle = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.002, decay: 0.22, sustain: 0, release: 0.25 },
+      volume: -17,
+    }).connect(this.tickPanner)
 
     // --- Truenos ---
-    this.thunderBus = new Tone.Volume(6).connect(reverb)
+    this.thunderBus = new Tone.Volume(4).connect(reverb)
     this.thunderPanner = new Tone.Panner(0).connect(this.thunderBus)
-    const thunderFilter = new Tone.Filter({ type: 'lowpass', frequency: 260 }).connect(this.thunderPanner)
+    const thunderFilter = new Tone.Filter({ type: 'lowpass', frequency: 320 }).connect(this.thunderPanner)
     this.thunderSynth = new Tone.MembraneSynth({
-      pitchDecay: 0.25,
-      octaves: 3,
-      envelope: { attack: 0.01, decay: 1.4, sustain: 0, release: 1 },
+      pitchDecay: 0.08,
+      octaves: 1.5,
+      envelope: { attack: 0.01, decay: 1.6, sustain: 0, release: 1.2 },
     }).connect(thunderFilter)
     this.thunderNoise = new Tone.NoiseSynth({
       noise: { type: 'brown' },
-      envelope: { attack: 0.05, decay: 2.2, sustain: 0, release: 1 },
+      envelope: { attack: 0.08, decay: 1.8, sustain: 0, release: 1 },
+      volume: -8,
     }).connect(thunderFilter)
 
     // --- Estaciones ---
     this.seasonBus = new Tone.Volume(-2).connect(reverb)
     this.padFilter = new Tone.Filter({ type: 'lowpass', frequency: 400, Q: 0.6 }).connect(this.seasonBus)
-    this.pad = new Tone.PolySynth(Tone.AMSynth, {
-      harmonicity: 1.5,
-      oscillator: { type: 'triangle' },
+    // Colchón cálido: tres osciladores triangulares ligeramente desafinados entre sí.
+    this.pad = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'fattriangle', count: 3, spread: 18 },
       envelope: { attack: 2.5, decay: 0.5, sustain: 0.9, release: 4 },
+      volume: -4,
     }).connect(this.padFilter)
 
     this.started = true
     this.applyLayers()
   }
 
-  /** Sonido de prueba: un rayo a la izquierda, uno a la derecha y un trueno. */
+  /** Sonido de prueba: piano eléctrico a la izquierda, a la derecha, al centro, y un trueno. */
   testSound() {
     if (!this.started) return
-    const now = Tone.now()
+    const now = Tone.now() + 0.05
     const notes: [string, number][] = [['A4', -1], ['D5', 1], ['F5', 0]]
     notes.forEach(([n, pan], i) => {
-      const v = this.voices[i]
-      v.panner.pan.setValueAtTime(pan, now + i * 0.25)
-      v.synth.triggerAttackRelease(n, 0.3, now + i * 0.25, 0.9)
+      const v = this.mallets[i]
+      v.panner.pan.setValueAtTime(pan, now + i * 0.3)
+      v.synth.triggerAttackRelease(n, 0.4, now + i * 0.3, 0.9)
     })
-    this.thunderSynth.triggerAttackRelease('A0', 1.2, now + 0.9, 0.9)
-    this.thunderNoise.triggerAttackRelease(1.5, now + 0.9, 0.7)
+    this.thunderPanner.pan.setValueAtTime(0, now + 1)
+    this.thunderSynth.triggerAttackRelease('D1', 1.4, now + 1, 0.9)
+    this.thunderNoise.triggerAttackRelease(1.5, now + 1, 0.6)
   }
 
   setLayers(layers: LayerState) {
@@ -193,68 +211,37 @@ export class StormEngine {
   /** Silencia todo (pausa) sin destruir el motor. */
   silence() {
     if (!this.started) return
-    this.crackleGain.gain.rampTo(0, 0.2)
     this.pad.releaseAll()
     this.currentChord = -1
-    this.noteBudget = 0
+    this.resetScheduler()
+  }
+
+  private resetScheduler() {
+    this.nextSlot = -1
+    this.pending = []
+    this.smallCount = 0
+    this.smallBalance = []
+    this.planner.reset()
   }
 
   /**
-   * Convierte las mediciones de un cuadro en sonido.
-   * @param dt segundos reales desde el cuadro anterior
-   * @returns los rayos que sonaron (para dibujarlos en pantalla)
+   * Recibe las mediciones de un cuadro. Los rayos no suenan al instante: se juntan y
+   * se tocan en el siguiente tiempo del pulso, ya armonizados.
+   * @returns lo que se programó para sonar (para dibujarlo), el acorde y el balance.
    */
-  update(f: FrameFeatures, dt: number): { played: PlayedStrike[]; thunder: Strike | null; chord: string; balance: number | null } {
+  update(f: FrameFeatures, _dt: number): { played: PlayedStrike[]; thunder: Strike | null; chord: string; balance: number | null } {
     if (!this.started) return { played: [], thunder: null, chord: '', balance: null }
     const now = Tone.now()
-    const played: PlayedStrike[] = []
-    let thunder: Strike | null = null
+    if (f.isReset) this.resetScheduler()
 
-    // 1) Chisporroteo según la cantidad de rayos nuevos.
-    this.crackleGain.gain.rampTo(0.04 + f.newRate * 0.3, 0.15)
-    const balance = balanceOf(f.strikes)
-    if (balance !== null) this.cracklePanner.pan.rampTo(balance, 0.2)
-
-    // 2) Notas: el número por segundo crece con la intensidad de rayos nuevos.
-    if (f.strikes.length > 0 && !f.isReset) {
-      const rate = MIN_NOTES_PER_SECOND + (MAX_NOTES_PER_SECOND - MIN_NOTES_PER_SECOND) * f.newRate
-      this.noteBudget = Math.min(this.noteBudget + rate * dt, 4)
-      const chosen = pickSpread(f.strikes, Math.floor(this.noteBudget))
-      this.noteBudget -= chosen.length
-      chosen.forEach((s, i) => {
-        const note = latToNote(s.lat)
-        const v = this.voices[this.nextVoice]
-        this.nextVoice = (this.nextVoice + 1) % VOICE_COUNT
-        const t = now + 0.01 + (i * Math.max(dt, 0.03)) / Math.max(chosen.length, 1)
-        v.panner.pan.setValueAtTime(lonToPan(s.lon), t)
-        const velocity = clamp(0.5 + s.energy / 2500, 0.5, 1)
-        v.synth.triggerAttackRelease(note, 0.3, t, velocity)
-        played.push({ ...s, note })
-      })
-    } else {
-      this.noteBudget = 0
-    }
-
-    // 3) Trueno: grupo grande de rayos nuevos → retumbo con retraso.
-    const strongest = f.strikes[0]
-    if (strongest && f.peakEnergy > THUNDER_ENERGY && now - this.lastThunder > THUNDER_COOLDOWN) {
-      this.lastThunder = now
-      thunder = strongest
-      const delay = 0.25 + Math.random() * 0.35
-      this.thunderPanner.pan.setValueAtTime(lonToPan(strongest.lon), now + delay)
-      const vel = clamp(f.peakEnergy / 5000, 0.4, 1)
-      this.thunderSynth.triggerAttackRelease('A0', 1.2, now + delay, vel)
-      this.thunderNoise.triggerAttackRelease(1.5, now + delay, vel * 0.8)
-    }
-
-    // 4) Estaciones: acorde según la latitud promedio; brillo según la actividad.
+    // 1) Estaciones primero: la melodía usa el acorde actual.
     let chordName = ''
     if (f.activity > 0.01) {
       const idx = chordIndexFor(f.meanLat, this.currentChord)
       chordName = SEASON_CHORDS[idx].name
       if (idx !== this.currentChord) {
         if (this.currentChord >= 0) this.pad.releaseAll(now)
-        this.pad.triggerAttack(SEASON_CHORDS[idx].notes, now + 0.05, 0.8)
+        this.pad.triggerAttack(SEASON_CHORDS[idx].notes, now + 0.05, 0.7)
         this.currentChord = idx
       }
       this.padFilter.frequency.rampTo(500 + f.activity * 2200, 0.5)
@@ -263,40 +250,90 @@ export class StormEngine {
       this.currentChord = -1
     }
 
-    return { played, thunder, chord: chordName, balance }
+    // 2) Clasificar los rayos de este cuadro: melodía (grandes) o textura (chicos/medianos).
+    for (const s of f.strikes) {
+      if (isMelodic(s)) this.pending.push(s)
+      else {
+        this.smallCount++
+        if (this.smallBalance.length < 64) this.smallBalance.push(s)
+      }
+    }
+    if (this.pending.length > 48) {
+      this.pending.sort((a, b) => priority(b) - priority(a))
+      this.pending.length = 48
+    }
+
+    // 3) Tocar los tiempos del pulso que caen dentro de la ventana de anticipación.
+    if (this.nextSlot < 0 || this.nextSlot < now - SLOT) this.nextSlot = Math.ceil(now / SLOT) * SLOT
+    const played: PlayedStrike[] = []
+    let thunder: Strike | null = null
+    while (this.nextSlot < now + LOOKAHEAD) {
+      const r = this.flushSlot(this.nextSlot)
+      played.push(...r.played)
+      if (r.thunder) thunder = r.thunder
+      this.nextSlot += SLOT
+    }
+
+    return { played, thunder, chord: chordName, balance: balanceOf(f.strikes) }
+  }
+
+  private flushSlot(t: number): { played: PlayedStrike[]; thunder: Strike | null } {
+    const played: PlayedStrike[] = []
+    let thunder: Strike | null = null
+    const chordIdx = this.currentChord >= 0 ? this.currentChord : 0
+
+    // Melodía: el planificador relaciona las notas entre sí (pasos, voces por región,
+    // conversación, arpegios con dirección, resolución en la calma). Ver melody.ts.
+    const sub = Math.round(t / SLOT) % 4
+    const plan = this.planner.planSlot(sub, this.pending, chordIdx)
+    for (const e of plan.events) {
+      const v = e.timbre === 'marimba'
+        ? this.mallets[this.nextMallet++ % this.mallets.length]
+        : this.bells[this.nextBell++ % this.bells.length]
+      const time = t + e.offset
+      v.panner.pan.setValueAtTime(e.pan, time)
+      // Como en un instrumento real: tocar más fuerte también suena más brillante.
+      if (e.timbre === 'marimba') v.synth.modulationIndex.setValueAtTime(RHODES_BRIGHTNESS * (0.6 + e.velocity * 0.7), time)
+      v.synth.triggerAttackRelease(midiToNote(e.midi), e.duration, time, e.velocity)
+    }
+    if (plan.group) {
+      const g = plan.group
+      const s = g.strike
+      played.push({ ...s, note: midiToNote(g.midi), voices: g.notes, region: g.region, direction: g.direction })
+      // Trueno: grupo muy grande → retumbo en la nota base del acorde.
+      if (s.energy >= THUNDER_ENERGY && t - this.lastThunder > THUNDER_COOLDOWN) {
+        this.lastThunder = t
+        thunder = s
+        const base = SEASON_CHORDS[chordIdx].tones[0] + '1'
+        const tt = t + 0.35
+        this.thunderPanner.pan.setValueAtTime(lonToPan(s.lon), tt)
+        this.thunderSynth.triggerAttackRelease(base, 1.4, tt, 0.85)
+        this.thunderNoise.triggerAttackRelease(1.4, tt, 0.5)
+      }
+    }
+    if (plan.resolution) this.resolutions++
+
+    // Textura: chispazos en subdivisiones del pulso, del lado donde caen los rayos chicos.
+    const ticks = textureTicks(this.smallCount)
+    if (ticks > 0) {
+      const b = balanceOf(this.smallBalance)
+      this.tickPanner.pan.setValueAtTime(b ?? 0, t)
+      const high = chordLadder(chordIdx, 84, 98) // notas del acorde en Do6–Re7
+      for (let k = 0; k < ticks; k++) {
+        const tk = t + (k * SLOT) / ticks + 0.003
+        const m = high[Math.floor(Math.random() * high.length)]
+        this.sparkle.triggerAttackRelease(midiToNote(m), 0.05, tk, 0.3 + Math.random() * 0.3)
+      }
+    }
+
+    this.pending = []
+    this.smallCount = 0
+    this.smallBalance = []
+    return { played, thunder }
   }
 
   dispose() {
     if (!this.started) return
-    this.crackle.stop()
     this.pad.releaseAll()
   }
-}
-
-/** Latitud → nota de la escala (norte = agudo). */
-export function latToNote(lat: number): string {
-  const t = clamp((lat - LAT_MIN) / (LAT_MAX - LAT_MIN), 0, 0.9999)
-  return STRIKE_SCALE[Math.floor(t * STRIKE_SCALE.length)]
-}
-
-/** Elige el acorde con histéresis de 2° para que no "tiemble" en las fronteras. */
-export function chordIndexFor(meanLat: number, current: number): number {
-  let idx = SEASON_CHORDS.findIndex((c) => meanLat <= c.maxLat)
-  if (idx < 0) idx = SEASON_CHORDS.length - 1
-  if (current >= 0 && idx !== current) {
-    const lo = current > 0 ? SEASON_CHORDS[current - 1].maxLat : -999
-    const hi = SEASON_CHORDS[current].maxLat
-    if (meanLat > lo - 2 && meanLat <= hi + 2) return current
-  }
-  return idx
-}
-
-/** Toma los rayos más fuertes pero evitando que todos sean del mismo lugar. */
-export function pickSpread(strikes: Strike[], n: number): Strike[] {
-  const out: Strike[] = []
-  for (const s of strikes) {
-    if (out.length >= n) break
-    if (out.every((o) => Math.abs(o.x - s.x) > 0.06 || Math.abs(o.y - s.y) > 0.1)) out.push(s)
-  }
-  return out
 }
