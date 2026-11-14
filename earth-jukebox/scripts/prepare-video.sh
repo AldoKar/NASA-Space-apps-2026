@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Genera la versión web del video de la NASA (4096x2048 60fps, 334 MB → 2048x1024 30fps, ~22 MB).
+# Uso: bash scripts/prepare-video.sh ../iss_lightning_sos_yearly_07312023_2048p60.mp4
+set -euo pipefail
+SRC="${1:?Indica la ruta del video original}"
+mkdir -p public/video
+ffmpeg -y -i "$SRC" -vf "scale=2048:1024:flags=area,fps=30" \
+  -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -movflags +faststart -an \
+  public/video/lightning-2048.mp4
