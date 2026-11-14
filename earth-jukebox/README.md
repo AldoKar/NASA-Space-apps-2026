@@ -57,6 +57,20 @@ video NASA ──► canvas oculto 1024×512 ──► detector (píxeles → n�
 ≈ +32° (verano boreal) y ≈ −14° (verano austral): ese es el ciclo de las estaciones que se
 escucha en la capa *Estaciones*.
 
+## Diseño
+
+Basado en las guías de Apple (HIG y *Designing Fluid Interfaces*):
+
+- **Dos capas:** el mapa es el contenido; la única superficie de vidrio translúcido es la barra
+  de reproducción que flota sobre él (`liquid-glass.md`: el vidrio solo en la capa funcional).
+- **Tipografía:** [Aileron](https://www.fontsource.org/fonts/aileron) (CC0), empaquetada con `@fontsource/aileron`; tracking negativo en títulos y ligeramente positivo en texto chico.
+- **Un solo acento:** el amarillo del rayo, reservado para la acción principal y los datos.
+- **Inspector en listas agrupadas** con interruptores, control segmentado y medidores.
+- **Elemento distintivo:** un riel de latitud sobre el borde derecho del mapa marca el centro de
+  las tormentas; se ve "respirar" de norte a sur con las estaciones.
+- **Movimiento con resortes críticamente amortiguados** (sin rebote), interrumpibles.
+- Modo claro y oscuro automáticos; respeta *reduced motion*, *reduced transparency* y *more contrast*.
+
 ## Accesibilidad
 
 - Todo se controla con teclado: `Espacio` reproducir/pausa, `1` `2` `3` capas,

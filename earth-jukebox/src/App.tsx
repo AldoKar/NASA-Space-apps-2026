@@ -5,23 +5,23 @@ import { StormEngine, type LayerState } from './audio/stormEngine'
 import { StrikeOverlay, type StrikeOverlayHandle } from './components/StrikeOverlay'
 import { activityLabel, describeMoment, hemisphereLabel } from './describe'
 import { TRACKS } from './tracks'
+import { Gauge, Icon, Section, Segmented, Switch } from './ui/controls'
+import { useSpring } from './ui/useSpring'
 import './App.css'
 
 const EMPTY: FrameFeatures = {
   activity: 0, meanLat: 0, northShare: 0.5, newRate: 0, strikes: [], peakEnergy: 0, isReset: true,
 }
 
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  )
+function useMedia(query: string) {
+  const [match, setMatch] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches)
   useEffect(() => {
-    const m = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const fn = () => setReduced(m.matches)
+    const m = window.matchMedia(query)
+    const fn = () => setMatch(m.matches)
     m.addEventListener('change', fn)
     return () => m.removeEventListener('change', fn)
-  }, [])
-  return reduced
+  }, [query])
+  return match
 }
 
 export default function App() {
@@ -30,7 +30,7 @@ export default function App() {
   if (import.meta.env.DEV) (window as unknown as { __engine: StormEngine }).__engine = engine
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
   const overlayRef = useRef<StrikeOverlayHandle>(null)
-  const reducedMotion = usePrefersReducedMotion()
+  const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
 
   const [playing, setPlaying] = useState(false)
   const [layers, setLayers] = useState<LayerState>({ strikes: true, thunder: true, seasons: true })
@@ -39,7 +39,6 @@ export default function App() {
   const [announce, setAnnounce] = useState(true)
   const [videoError, setVideoError] = useState(false)
 
-  // Valores que se muestran (se actualizan ~5 veces por segundo, no en cada cuadro).
   const [shown, setShown] = useState({ f: EMPTY, chord: '', notesPerSec: 0, time: 0, duration: 0, level: 0, audio: 'off' })
   const latest = useRef({ f: EMPTY, chord: '', time: 0 })
   const notesWindow = useRef<number[]>([])
@@ -65,7 +64,7 @@ export default function App() {
 
   useLightningLoop(video, engine, onTick)
 
-  // Refresco de indicadores + anuncios para lector de pantalla.
+  // Indicadores (~5 veces por segundo) y anuncios para lector de pantalla.
   useEffect(() => {
     const id = window.setInterval(() => {
       const now = performance.now()
@@ -82,9 +81,7 @@ export default function App() {
         const key = `${activityLabel(f.activity)}|${hemisphereLabel(f.meanLat)}`
         if (key !== lastAnnounce.current.key && now - lastAnnounce.current.at > 8000) {
           lastAnnounce.current = { key, at: now }
-          setLiveText(
-            `Actividad ${activityLabel(f.activity)}, tormentas ${hemisphereLabel(f.meanLat)}.`,
-          )
+          setLiveText(`Actividad ${activityLabel(f.activity)}, tormentas ${hemisphereLabel(f.meanLat)}.`)
         }
       }
     }, 200)
@@ -93,18 +90,22 @@ export default function App() {
 
   const progressPct = shown.duration ? (shown.time / shown.duration) * 100 : 0
 
+  const startAudio = useCallback(async () => {
+    await engine.start()
+    engine.setLayers(layers)
+    engine.setVolume(volume)
+  }, [engine, layers, volume])
+
   const togglePlay = useCallback(async () => {
     if (!video) return
     if (video.paused) {
-      await engine.start()
-      engine.setLayers(layers)
-      engine.setVolume(volume)
+      await startAudio()
       if (video.ended) video.currentTime = 0
       await video.play()
     } else {
       video.pause()
     }
-  }, [video, engine, layers, volume])
+  }, [video, startAudio])
 
   const restart = useCallback(() => {
     if (video) video.currentTime = 0
@@ -115,20 +116,17 @@ export default function App() {
   }, [video])
 
   const describeNow = useCallback(() => {
-    // Cambiar el texto aunque sea igual fuerza a que el lector lo repita.
     setLiveText('')
     window.setTimeout(() => setLiveText(describeMoment(latest.current.f, progressPct)), 50)
   }, [progressPct])
 
   const testSound = useCallback(async () => {
-    await engine.start()
-    engine.setLayers(layers)
-    engine.setVolume(volume)
+    await startAudio()
     engine.testSound()
-  }, [engine, layers, volume])
+  }, [engine, startAudio])
 
-  const toggleLayer = useCallback((k: keyof LayerState) => {
-    setLayers((l) => ({ ...l, [k]: !l[k] }))
+  const setLayer = useCallback((k: keyof LayerState, v?: boolean) => {
+    setLayers((l) => ({ ...l, [k]: v ?? !l[k] }))
   }, [])
 
   // Atajos de teclado.
@@ -137,14 +135,15 @@ export default function App() {
       const el = e.target as HTMLElement
       const tag = el?.tagName
       const typing = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
-      if (e.key === ' ' && !typing && tag !== 'BUTTON') {
+      const onButton = tag === 'BUTTON'
+      if (e.key === ' ' && !typing && !onButton) {
         e.preventDefault()
         void togglePlay()
       } else if (typing || e.metaKey || e.ctrlKey || e.altKey) {
         return
-      } else if (e.key === '1') toggleLayer('strikes')
-      else if (e.key === '2') toggleLayer('thunder')
-      else if (e.key === '3') toggleLayer('seasons')
+      } else if (e.key === '1') setLayer('strikes')
+      else if (e.key === '2') setLayer('thunder')
+      else if (e.key === '3') setLayer('seasons')
       else if (e.key.toLowerCase() === 'd') describeNow()
       else if (e.key.toLowerCase() === 'r') restart()
       else if (e.key === 'ArrowRight') seekBy(5)
@@ -152,32 +151,36 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, toggleLayer, describeNow, restart, seekBy])
+  }, [togglePlay, setLayer, describeNow, restart, seekBy])
 
   const f = shown.f
-  const latPct = ((Math.max(-50, Math.min(50, f.meanLat)) + 50) / 100) * 100
+  const hasData = f.activity > 0.01
+  // Riel de latitud: posición vertical exacta sobre el mapa equirectangular.
+  const latTarget = hasData ? f.meanLat : 0
+  const latSpring = useSpring(latTarget, 0.6, reducedMotion)
+  const latTop = ((90 - latSpring) / 180) * 100
+  const activitySpring = useSpring(f.activity, 0.4, reducedMotion)
+  const newSpring = useSpring(f.newRate, 0.3, reducedMotion)
+  const levelSpring = useSpring(Math.min(1, shown.level / 0.6), 0.15, reducedMotion)
+
+  const audioLabel =
+    shown.audio === 'running' ? 'Activo' : shown.audio === 'off' ? 'Apagado' : 'Bloqueado'
 
   return (
     <div className="app">
-      <a className="skip" href="#controles">Saltar a los controles</a>
-      <header className="top">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          <div>
-            <h1>Earth Jukebox</h1>
-            <p className="tagline">Escucha cómo cambia la Tierra, con datos visuales de la NASA</p>
-          </div>
-        </div>
+      <a className="skip" href="#transport">Saltar a los controles</a>
+
+      <header className="masthead">
+        <p className="app-name">
+          <span className="app-glyph" aria-hidden="true" />
+          Earth Jukebox
+        </p>
+        <h1 className="display">{track.title}</h1>
+        <p className="lede">{track.subtitle}</p>
       </header>
 
       <main className="layout">
-        <section className="stage" aria-labelledby="track-title">
-          <div className="track-head">
-            <p className="eyebrow">Pista 1</p>
-            <h2 id="track-title">{track.title}</h2>
-            <p className="subtitle">{track.subtitle}</p>
-          </div>
-
+        <section className="stage" aria-label="Visualización y reproducción">
           <figure className="viewer">
             <div className="video-wrap">
               <video
@@ -193,162 +196,157 @@ export default function App() {
                 aria-describedby="visual-desc"
               />
               <StrikeOverlay ref={overlayRef} reducedMotion={reducedMotion} />
+
+              {/* Elemento distintivo: el centro de las tormentas sobre el eje de latitud del mapa */}
+              <div className={`lat-rail ${hasData ? 'is-live' : ''}`} aria-hidden="true">
+                <span className="lat-rail-line" />
+                <span className="lat-rail-eq" />
+                <span className="lat-marker" style={{ top: `${latTop}%` }}>
+                  <span className="lat-dot" />
+                  <span className="lat-pill">{hasData ? formatLat(f.meanLat) : '—'}</span>
+                </span>
+              </div>
+
               {!playing && (
-                <button className="big-play" onClick={() => void togglePlay()} aria-label="Reproducir pista con sonido">
-                  <span aria-hidden="true">▶</span>
+                <button className="hero-play" onClick={() => void togglePlay()} aria-label="Reproducir con sonido">
+                  {Icon.play}
                 </button>
               )}
+
+              {/* Capa funcional: única superficie de vidrio, flotando sobre el contenido */}
+              <div id="transport" className="transport glass" role="group" aria-label="Reproducción">
+                <button
+                  className="t-btn t-primary"
+                  onClick={() => void togglePlay()}
+                  aria-label={playing ? 'Pausa' : 'Reproducir'}
+                  aria-keyshortcuts="Space"
+                >
+                  {playing ? Icon.pause : Icon.play}
+                </button>
+                <button className="t-btn" onClick={restart} aria-label="Reiniciar" aria-keyshortcuts="R">
+                  {Icon.restart}
+                </button>
+                <span className="t-date">{track.periodStart}</span>
+                <input
+                  className="scrubber"
+                  type="range"
+                  min={0}
+                  max={shown.duration || 100}
+                  step={0.1}
+                  value={shown.time}
+                  style={{ ['--p' as string]: `${progressPct}%` }}
+                  onChange={(e) => { if (video) video.currentTime = Number(e.target.value) }}
+                  aria-label="Posición en el periodo 2017 a 2023"
+                  aria-valuetext={`${Math.round(progressPct)} por ciento del periodo`}
+                />
+                <span className="t-date">{track.periodEnd}</span>
+                <span className="t-vol">
+                  {Icon.speaker}
+                  <input
+                    className="scrubber vol"
+                    type="range" min={-30} max={0} step={1} value={volume}
+                    style={{ ['--p' as string]: `${((volume + 30) / 30) * 100}%` }}
+                    onChange={(e) => setVolume(Number(e.target.value))}
+                    aria-label="Volumen"
+                    aria-valuetext={`${volume} decibeles`}
+                  />
+                </span>
+              </div>
             </div>
-            <figcaption id="visual-desc" className="visual-desc">{track.visualDescription}</figcaption>
+            <figcaption id="visual-desc" className="caption">{track.visualDescription}</figcaption>
             {videoError && (
               <p className="error" role="alert">
-                No se encontró el video. Copia el archivo a <code>public{track.videoSrc}</code> (ver README).
+                No se encontró el video. Copia el archivo a <code>public{track.videoSrc}</code>.
               </p>
             )}
           </figure>
-
-          <div className="timeline">
-            <span>{track.periodStart}</span>
-            <input
-              type="range"
-              min={0}
-              max={shown.duration || 100}
-              step={0.1}
-              value={shown.time}
-              onChange={(e) => { if (video) video.currentTime = Number(e.target.value) }}
-              aria-label="Posición en el periodo 2017 a 2023"
-              aria-valuetext={`${Math.round(progressPct)} por ciento del periodo`}
-            />
-            <span>{track.periodEnd}</span>
-          </div>
-
-          <div id="controles" className="controls" role="group" aria-label="Controles de reproducción">
-            <button className="primary" onClick={() => void togglePlay()} aria-keyshortcuts="Space">
-              {playing ? 'Pausa' : 'Reproducir'}
-            </button>
-            <button onClick={restart} aria-keyshortcuts="R">Reiniciar</button>
-            <button onClick={describeNow} aria-keyshortcuts="D">Describir este momento</button>
-            <button onClick={() => void testSound()}>Probar sonido</button>
-            <label className="inline">
-              Velocidad
-              <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-                <option value={0.5}>0.5×</option>
-                <option value={1}>1×</option>
-              </select>
-            </label>
-            <label className="inline">
-              Volumen
-              <input
-                type="range" min={-30} max={0} step={1} value={volume}
-                onChange={(e) => setVolume(Number(e.target.value))}
-                aria-valuetext={`${volume} decibeles`}
-              />
-            </label>
-          </div>
         </section>
 
-        <aside className="panel" aria-label="Lo que estás escuchando">
-          <h2 className="panel-title">Capas de sonido</h2>
-          <div className="layers" role="group" aria-label="Activar o silenciar capas">
-            <LayerToggle
-              on={layers.strikes} onClick={() => toggleLayer('strikes')} shortcut="1"
-              name="Rayos" hint="Cada rayo nuevo es una nota. Norte agudo, sur grave; oeste a la izquierda, este a la derecha."
+        <aside className="inspector" aria-label="Lo que estás escuchando">
+          <Section
+            title="Capas de sonido"
+            footer="Norte suena agudo y sur grave. Oeste a la izquierda, este a la derecha."
+          >
+            <Switch
+              label="Rayos" description="Cada rayo nuevo es una nota" shortcut="1"
+              checked={layers.strikes} onChange={(v) => setLayer('strikes', v)}
             />
-            <LayerToggle
-              on={layers.thunder} onClick={() => toggleLayer('thunder')} shortcut="2"
-              name="Truenos" hint="Un grupo grande de rayos juntos produce un retumbo, con retraso como en la vida real."
+            <Switch
+              label="Truenos" description="Grupos grandes retumban con retraso" shortcut="2"
+              checked={layers.thunder} onChange={(v) => setLayer('thunder', v)}
             />
-            <LayerToggle
-              on={layers.seasons} onClick={() => toggleLayer('seasons')} shortcut="3"
-              name="Estaciones" hint="El acorde de fondo sube o baja según hacia dónde se mueven las tormentas."
+            <Switch
+              label="Estaciones" description="El acorde sigue a las tormentas" shortcut="3"
+              checked={layers.seasons} onChange={(v) => setLayer('seasons', v)}
             />
-          </div>
+          </Section>
 
-          <h2 className="panel-title">En este momento</h2>
-          <dl className="readouts">
-            <div>
-              <dt>Actividad (10 días)</dt>
-              <dd>
-                <meter min={0} max={1} value={f.activity} aria-label="Actividad eléctrica">{activityLabel(f.activity)}</meter>
-                <span className="val">{activityLabel(f.activity)}</span>
-              </dd>
+          <Section title="En este momento">
+            <div className="row stack">
+              <div className="row-head">
+                <span className="row-label">Actividad</span>
+                <span className="row-value">{hasData ? activityLabel(f.activity) : '—'}</span>
+              </div>
+              <Gauge value={activitySpring} label="Actividad de los últimos 10 días" valueText={activityLabel(f.activity)} />
             </div>
-            <div>
-              <dt>Rayos nuevos</dt>
-              <dd>
-                <meter min={0} max={1} value={f.newRate} aria-label="Intensidad de rayos nuevos" />
-                <span className="val">{shown.notesPerSec} notas/s</span>
-              </dd>
+            <div className="row stack">
+              <div className="row-head">
+                <span className="row-label">Rayos nuevos</span>
+                <span className="row-value tabular">{shown.notesPerSec} notas/s</span>
+              </div>
+              <Gauge value={newSpring} label="Intensidad de rayos nuevos" valueText={`${shown.notesPerSec} notas por segundo`} />
             </div>
-            <div>
-              <dt>Centro de las tormentas</dt>
-              <dd className="lat">
-                <span className="lat-bar" aria-hidden="true">
-                  <span className="lat-eq" />
-                  <span className="lat-dot" style={{ bottom: `${latPct}%` }} />
-                </span>
-                <span className="val">
-                  {f.activity > 0.01 ? formatLat(f.meanLat) : '—'}
-                  <small>{f.activity > 0.01 ? hemisphereLabel(f.meanLat) : ''}</small>
-                </span>
-              </dd>
+            <div className="row">
+              <div className="row-text">
+                <span className="row-label">Centro de tormentas</span>
+                <span className="row-sub">{hasData ? hemisphereLabel(f.meanLat) : 'Sin datos aún'}</span>
+              </div>
+              <span className="row-value tabular">{hasData ? formatLat(f.meanLat) : '—'}</span>
             </div>
-            <div>
-              <dt>Acorde de la estación</dt>
-              <dd><span className="val">{shown.chord || '—'}</span></dd>
+            <div className="row">
+              <span className="row-label">Acorde</span>
+              <span className="row-value">{shown.chord || '—'}</span>
             </div>
-          </dl>
+          </Section>
 
-          <div className="audio-status">
-            <span>Audio: {shown.audio === 'running' ? 'activo' : shown.audio === 'off' ? 'apagado (presiona Reproducir)' : 'bloqueado por el navegador'}</span>
-            <meter min={0} max={0.6} value={shown.level} aria-label="Nivel de salida de audio" />
-          </div>
+          <Section title="Reproducción">
+            <div className="row">
+              <span className="row-label">Velocidad</span>
+              <Segmented
+                label="Velocidad"
+                value={speed}
+                onChange={setSpeed}
+                options={[{ value: 0.5, label: '0.5×' }, { value: 1, label: '1×' }]}
+              />
+            </div>
+            <div className="row stack">
+              <div className="row-head">
+                <span className="row-label">Audio</span>
+                <span className={`row-value status-${shown.audio === 'running' ? 'ok' : 'off'}`}>{audioLabel}</span>
+              </div>
+              <Gauge value={levelSpring} label="Nivel de salida de audio" valueText={audioLabel} />
+            </div>
+            <button className="row row-action" onClick={() => void testSound()}>
+              <span className="row-icon">{Icon.wave}</span>Probar sonido
+            </button>
+          </Section>
 
-          <label className="check">
-            <input type="checkbox" checked={announce} onChange={(e) => setAnnounce(e.target.checked)} />
-            Anunciar cambios al lector de pantalla
-          </label>
-
-          <details className="keys">
-            <summary>Atajos de teclado</summary>
-            <ul>
-              <li><kbd>Espacio</kbd> reproducir / pausa</li>
-              <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> capas</li>
-              <li><kbd>D</kbd> describir este momento</li>
-              <li><kbd>←</kbd> <kbd>→</kbd> retroceder / avanzar 5 s</li>
-              <li><kbd>R</kbd> reiniciar</li>
-            </ul>
-          </details>
+          <Section title="Accesibilidad" footer={<>Atajos: <kbd>Espacio</kbd> reproducir · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> capas · <kbd>D</kbd> describir · <kbd>←</kbd><kbd>→</kbd> ±5 s · <kbd>R</kbd> reiniciar</>}>
+            <button className="row row-action" onClick={describeNow} aria-keyshortcuts="D">
+              <span className="row-icon">{Icon.describe}</span>Describir este momento
+            </button>
+            <Switch label="Anunciar cambios" description="Para lectores de pantalla" checked={announce} onChange={setAnnounce} />
+          </Section>
         </aside>
       </main>
 
       <footer className="foot">
-        <p>
-          Datos visuales: <a href={track.source.url} target="_blank" rel="noreferrer">{track.source.label}</a>,
-          NASA Scientific Visualization Studio. El sensor LIS solo ve cada zona cuando la Estación
-          Espacial pasa por encima: es una muestra de los rayos del planeta, no un conteo total.
-        </p>
+        Datos visuales: <a href={track.source.url} target="_blank" rel="noreferrer">{track.source.label}</a>, NASA
+        Scientific Visualization Studio. El sensor LIS solo ve cada zona cuando la Estación Espacial pasa por
+        encima: es una muestra de los rayos del planeta, no un conteo total.
       </footer>
 
       <div className="sr-only" role="status" aria-live="polite">{liveText}</div>
     </div>
-  )
-}
-
-function LayerToggle(props: { on: boolean; onClick: () => void; name: string; hint: string; shortcut: string }) {
-  return (
-    <button
-      className={`layer ${props.on ? 'on' : ''}`}
-      aria-pressed={props.on}
-      onClick={props.onClick}
-      aria-keyshortcuts={props.shortcut}
-    >
-      <span className="layer-name">
-        <span className="led" aria-hidden="true" />
-        {props.name}
-        <kbd aria-hidden="true">{props.shortcut}</kbd>
-      </span>
-      <span className="layer-hint">{props.hint}</span>
-    </button>
   )
 }

@@ -12,6 +12,7 @@
     "validate": "vitest run validate"
   },
   "dependencies": {
+    "@fontsource/aileron": "^5.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tone": "^15.1.22"

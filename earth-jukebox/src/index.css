@@ -1,34 +1,88 @@
+/*
+ * Tokens de diseño — colores semánticos inspirados en los colores del sistema de Apple.
+ * Claro y oscuro siguen la preferencia del sistema (sin interruptor propio, HIG › Dark Mode).
+ * El amarillo es el único acento: "rayo" y acción principal. Nada más lo usa.
+ */
 :root {
-  --bg: #07090f;
-  --bg-2: #0d111b;
-  --panel: #111726;
-  --line: #222b40;
-  --text: #e9edf6;
-  --muted: #9aa6bf;
-  --bolt: #ffe14d;
-  --bolt-soft: #fff2a8;
-  --sky: #8fb8ff;
-  --focus: #ffe14d;
-  color-scheme: dark;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.5;
-  color: var(--text);
+  color-scheme: light dark;
+  /* Aileron (CC0, Sorkin Type / dotcolon) — pesos 400, 600, 700, 800 */
+  --font: 'Aileron', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Aileron', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  /* Claro */
+  --bg: #f2f2f7;               /* systemGroupedBackground */
+  --surface: #ffffff;          /* secondarySystemGroupedBackground */
+  --label: #000000;
+  --label-2: rgba(60, 60, 67, 0.72);   /* secondaryLabel (subido para 4.5:1) */
+  --label-3: rgba(60, 60, 67, 0.45);
+  --separator: rgba(60, 60, 67, 0.2);
+  --fill: rgba(120, 120, 128, 0.16);
+  --fill-2: rgba(120, 120, 128, 0.24);
+  --accent: #ffcc00;           /* systemYellow (fondos) */
+  --accent-ink: #9a6700;       /* amarillo legible sobre claro (barras, estado) */
+  --on-accent: #1c1c1e;
+  --green: #34c759;
+  --green-ink: #1f7a37;        /* verde legible sobre blanco (≥4.5:1) */
+  --focus: #007aff;
+  --thumb: #ffffff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px -12px rgba(0, 0, 0, 0.18);
+  --stage-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.45);
+
+  font-family: var(--font);
+  font-size: 100%;
+  line-height: 1.47;
+  color: var(--label);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  font-optical-sizing: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --label: #ffffff;
+    --label-2: rgba(235, 235, 245, 0.66);
+    --label-3: rgba(235, 235, 245, 0.38);
+    --separator: rgba(84, 84, 88, 0.6);
+    --fill: rgba(120, 120, 128, 0.32);
+    --fill-2: rgba(120, 120, 128, 0.44);
+    --accent: #ffd60a;
+    --accent-ink: #ffd60a;
+    --green: #30d158;
+    --green-ink: #30d158;
+    --focus: #0a84ff;
+    --thumb: #636366;
+    --shadow: none;
+    --stage-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --label-2: var(--label);
+    --separator: var(--label-2);
+  }
 }
 
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; min-height: 100%; }
-body {
-  background:
-    radial-gradient(1200px 600px at 75% -10%, #1a2340 0%, transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, #1b1530 0%, transparent 60%),
-    var(--bg);
-  min-height: 100vh;
-}
+body { background: var(--bg); min-height: 100vh; }
 
-a { color: var(--sky); }
-:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+a { color: var(--focus); text-underline-offset: 2px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+kbd {
+  font-family: var(--font);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0 0.35em;
+  margin: 0 0.1em;
+  border-radius: 5px;
+  background: var(--fill);
+  color: var(--label);
+}
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -36,5 +90,5 @@ a { color: var(--sky); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  *, *::before, *::after { transition-duration: 1ms !important; animation: none !important; }
 }
