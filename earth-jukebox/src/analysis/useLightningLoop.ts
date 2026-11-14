@@ -7,6 +7,8 @@ export interface LoopTick {
   played: PlayedStrike[]
   thunder: Strike | null
   chord: string
+  /** Balance izquierda/derecha de los rayos nuevos (-1..1), null si no hubo. */
+  balance: number | null
   videoTime: number
 }
 
@@ -59,7 +61,7 @@ export function useLightningLoop(
       const { data } = ctx.getImageData(0, 0, ANALYSIS_W, ANALYSIS_H)
       const features = detector.analyze(data, mediaTime)
       const out = v.paused
-        ? { played: [], thunder: null, chord: '' }
+        ? { played: [], thunder: null, chord: '', balance: null }
         : engine.update(features, dt)
       onTickRef.current({ features, ...out, videoTime: mediaTime })
     }

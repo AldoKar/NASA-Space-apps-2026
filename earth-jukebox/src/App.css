@@ -264,3 +264,28 @@
 }
 
 button:active { transition-duration: 100ms; }
+
+/* Guía de paneo: línea vertical al centro del mapa */
+.pan-guide { position: absolute; inset: 0; pointer-events: none; }
+.pan-line {
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-0.5px);
+  background: repeating-linear-gradient(180deg, rgba(255,255,255,.38) 0 6px, transparent 6px 12px);
+}
+.pan-tag {
+  position: absolute; top: 0.9rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: rgba(255,255,255,.72);
+  padding: 0.15rem 0.5rem; border-radius: 999px; background: rgba(0,0,0,.5);
+}
+.pan-tag.left { right: calc(50% + 0.6rem); }
+.pan-tag.right { left: calc(50% + 0.6rem); }
+
+/* Indicador de balance izquierda/derecha */
+.balance { display: flex; align-items: center; gap: 0.6rem; }
+.balance-l, .balance-r { font-size: 0.75rem; font-weight: 700; color: var(--label-2); width: 0.75rem; text-align: center; }
+.balance-track { position: relative; flex: 1; height: 6px; border-radius: 99px; background: var(--fill); }
+.balance-mid { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; transform: translateX(-1px); border-radius: 2px; background: var(--label-3); }
+.balance-dot {
+  position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%;
+  transform: translate(-50%, -50%); background: var(--accent-ink);
+  box-shadow: 0 0 0 3px var(--surface);
+}

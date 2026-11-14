@@ -1,5 +1,6 @@
 import * as Tone from 'tone'
 import type { FrameFeatures, Strike } from '../analysis/detector'
+import { balanceOf, lonToPan } from './mapping'
 
 /**
  * Motor de sonido "Tormentas del planeta".
@@ -7,7 +8,8 @@ import type { FrameFeatures, Strike } from '../analysis/detector'
  * Reglas de traducción imagen → sonido (las mismas que se explican en la interfaz):
  *  RAYOS      cada rayo nuevo = una nota corta tipo campana eléctrica.
  *             - latitud  → altura (norte = agudo, sur = grave)
- *             - longitud → paneo  (oeste = izquierda, este = derecha)
+ *             - longitud → paneo: el mapa se parte con una línea vertical al centro;
+ *               izquierda del mapa = audífono izquierdo, derecha = derecho (ver mapping.ts)
  *             - energía  → volumen
  *             La cantidad de rayos nuevos controla cuántas notas por segundo
  *             y un "chisporroteo" de fondo.
@@ -71,6 +73,7 @@ export class StormEngine {
   private nextVoice = 0
   private crackle!: Tone.Noise
   private crackleGain!: Tone.Gain
+  private cracklePanner!: Tone.Panner
   private thunderSynth!: Tone.MembraneSynth
   private thunderNoise!: Tone.NoiseSynth
   private thunderPanner!: Tone.Panner
@@ -103,9 +106,9 @@ export class StormEngine {
 
     const limiter = new Tone.Limiter(-2).toDestination()
     this.master = new Tone.Volume(0).connect(limiter)
-    this.meter = new Tone.Meter({ normalRange: true, smoothing: 0.6 })
+    this.meter = new Tone.Meter({ normalRange: true, smoothing: 0.6, channelCount: 2 })
     limiter.connect(this.meter)
-    const reverb = new Tone.Reverb({ decay: 5, wet: 0.35 }).connect(this.master)
+    const reverb = new Tone.Reverb({ decay: 4, wet: 0.2 }).connect(this.master)
 
     // --- Rayos ---
     this.strikeBus = new Tone.Volume(4).connect(reverb)
@@ -123,8 +126,10 @@ export class StormEngine {
     }
     // Chisporroteo: ruido filtrado cuyo volumen sigue la cantidad de rayos nuevos.
     const crackleFilter = new Tone.Filter({ type: 'bandpass', frequency: 3200, Q: 0.8 })
-    this.crackleGain = new Tone.Gain(0).connect(this.strikeBus)
-    const crackleTremolo = new Tone.Tremolo({ frequency: 13, depth: 0.9, spread: 120 }).start()
+    // El chisporroteo también se mueve al lado donde están cayendo los rayos nuevos.
+    this.cracklePanner = new Tone.Panner(0).connect(this.strikeBus)
+    this.crackleGain = new Tone.Gain(0).connect(this.cracklePanner)
+    const crackleTremolo = new Tone.Tremolo({ frequency: 13, depth: 0.9, spread: 0 }).start()
     this.crackle = new Tone.Noise('white')
     this.crackle.chain(crackleFilter, crackleTremolo, this.crackleGain)
     this.crackle.start()
@@ -160,7 +165,7 @@ export class StormEngine {
   testSound() {
     if (!this.started) return
     const now = Tone.now()
-    const notes: [string, number][] = [['A4', -0.8], ['D5', 0.8], ['F5', 0]]
+    const notes: [string, number][] = [['A4', -1], ['D5', 1], ['F5', 0]]
     notes.forEach(([n, pan], i) => {
       const v = this.voices[i]
       v.panner.pan.setValueAtTime(pan, now + i * 0.25)
@@ -199,14 +204,16 @@ export class StormEngine {
    * @param dt segundos reales desde el cuadro anterior
    * @returns los rayos que sonaron (para dibujarlos en pantalla)
    */
-  update(f: FrameFeatures, dt: number): { played: PlayedStrike[]; thunder: Strike | null; chord: string } {
-    if (!this.started) return { played: [], thunder: null, chord: '' }
+  update(f: FrameFeatures, dt: number): { played: PlayedStrike[]; thunder: Strike | null; chord: string; balance: number | null } {
+    if (!this.started) return { played: [], thunder: null, chord: '', balance: null }
     const now = Tone.now()
     const played: PlayedStrike[] = []
     let thunder: Strike | null = null
 
     // 1) Chisporroteo según la cantidad de rayos nuevos.
     this.crackleGain.gain.rampTo(0.04 + f.newRate * 0.3, 0.15)
+    const balance = balanceOf(f.strikes)
+    if (balance !== null) this.cracklePanner.pan.rampTo(balance, 0.2)
 
     // 2) Notas: el número por segundo crece con la intensidad de rayos nuevos.
     if (f.strikes.length > 0 && !f.isReset) {
@@ -219,7 +226,7 @@ export class StormEngine {
         const v = this.voices[this.nextVoice]
         this.nextVoice = (this.nextVoice + 1) % VOICE_COUNT
         const t = now + 0.01 + (i * Math.max(dt, 0.03)) / Math.max(chosen.length, 1)
-        v.panner.pan.setValueAtTime(clamp(s.lon / 180, -1, 1), t)
+        v.panner.pan.setValueAtTime(lonToPan(s.lon), t)
         const velocity = clamp(0.5 + s.energy / 2500, 0.5, 1)
         v.synth.triggerAttackRelease(note, 0.3, t, velocity)
         played.push({ ...s, note })
@@ -234,7 +241,7 @@ export class StormEngine {
       this.lastThunder = now
       thunder = strongest
       const delay = 0.25 + Math.random() * 0.35
-      this.thunderPanner.pan.setValueAtTime(clamp(strongest.lon / 180, -1, 1), now + delay)
+      this.thunderPanner.pan.setValueAtTime(lonToPan(strongest.lon), now + delay)
       const vel = clamp(f.peakEnergy / 5000, 0.4, 1)
       this.thunderSynth.triggerAttackRelease('A0', 1.2, now + delay, vel)
       this.thunderNoise.triggerAttackRelease(1.5, now + delay, vel * 0.8)
@@ -256,7 +263,7 @@ export class StormEngine {
       this.currentChord = -1
     }
 
-    return { played, thunder, chord: chordName }
+    return { played, thunder, chord: chordName, balance }
   }
 
   dispose() {

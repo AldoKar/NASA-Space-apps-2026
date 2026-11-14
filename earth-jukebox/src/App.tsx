@@ -3,7 +3,7 @@ import { formatLat, type FrameFeatures } from './analysis/detector'
 import { useLightningLoop, type LoopTick } from './analysis/useLightningLoop'
 import { StormEngine, type LayerState } from './audio/stormEngine'
 import { StrikeOverlay, type StrikeOverlayHandle } from './components/StrikeOverlay'
-import { activityLabel, describeMoment, hemisphereLabel } from './describe'
+import { activityLabel, describeMoment, hemisphereLabel, sideLabel } from './describe'
 import { TRACKS } from './tracks'
 import { Gauge, Icon, Section, Segmented, Switch } from './ui/controls'
 import { useSpring } from './ui/useSpring'
@@ -39,8 +39,8 @@ export default function App() {
   const [announce, setAnnounce] = useState(true)
   const [videoError, setVideoError] = useState(false)
 
-  const [shown, setShown] = useState({ f: EMPTY, chord: '', notesPerSec: 0, time: 0, duration: 0, level: 0, audio: 'off' })
-  const latest = useRef({ f: EMPTY, chord: '', time: 0 })
+  const [shown, setShown] = useState({ f: EMPTY, chord: '', notesPerSec: 0, time: 0, duration: 0, level: 0, audio: 'off', balance: null as number | null })
+  const latest = useRef({ f: EMPTY, chord: '', time: 0, balance: null as number | null })
   const notesWindow = useRef<number[]>([])
   const [liveText, setLiveText] = useState('')
   const lastAnnounce = useRef({ key: '', at: 0 })
@@ -53,7 +53,10 @@ export default function App() {
   useEffect(() => () => engine.dispose(), [engine])
 
   const onTick = useCallback((t: LoopTick) => {
-    latest.current = { f: t.features, chord: t.chord || latest.current.chord, time: t.videoTime }
+    // Balance suavizado para que el indicador no tiemble.
+    const prevB = latest.current.balance
+    const balance = t.balance === null ? prevB : prevB === null ? t.balance : prevB * 0.85 + t.balance * 0.15
+    latest.current = { f: t.features, chord: t.chord || latest.current.chord, time: t.videoTime, balance }
     if (t.played.length) {
       overlayRef.current?.addStrikes(t.played)
       const now = performance.now()
@@ -69,9 +72,9 @@ export default function App() {
     const id = window.setInterval(() => {
       const now = performance.now()
       notesWindow.current = notesWindow.current.filter((x) => now - x < 1000)
-      const { f, chord, time } = latest.current
+      const { f, chord, time, balance } = latest.current
       setShown({
-        f, chord, time,
+        f, chord, time, balance,
         notesPerSec: notesWindow.current.length,
         duration: video?.duration || 0,
         level: engine.getLevel(),
@@ -117,7 +120,7 @@ export default function App() {
 
   const describeNow = useCallback(() => {
     setLiveText('')
-    window.setTimeout(() => setLiveText(describeMoment(latest.current.f, progressPct)), 50)
+    window.setTimeout(() => setLiveText(describeMoment(latest.current.f, progressPct, latest.current.balance)), 50)
   }, [progressPct])
 
   const testSound = useCallback(async () => {
@@ -162,6 +165,7 @@ export default function App() {
   const activitySpring = useSpring(f.activity, 0.4, reducedMotion)
   const newSpring = useSpring(f.newRate, 0.3, reducedMotion)
   const levelSpring = useSpring(Math.min(1, shown.level / 0.6), 0.15, reducedMotion)
+  const balanceSpring = useSpring(shown.balance ?? 0, 0.35, reducedMotion)
 
   const audioLabel =
     shown.audio === 'running' ? 'Activo' : shown.audio === 'off' ? 'Apagado' : 'Bloqueado'
@@ -196,6 +200,13 @@ export default function App() {
                 aria-describedby="visual-desc"
               />
               <StrikeOverlay ref={overlayRef} reducedMotion={reducedMotion} />
+
+              {/* Línea vertical al centro: divide el mapa entre audífono izquierdo y derecho */}
+              <div className="pan-guide" aria-hidden="true">
+                <span className="pan-line" />
+                <span className="pan-tag left">Izquierda</span>
+                <span className="pan-tag right">Derecha</span>
+              </div>
 
               {/* Elemento distintivo: el centro de las tormentas sobre el eje de latitud del mapa */}
               <div className={`lat-rail ${hasData ? 'is-live' : ''}`} aria-hidden="true">
@@ -265,7 +276,7 @@ export default function App() {
         <aside className="inspector" aria-label="Lo que estás escuchando">
           <Section
             title="Capas de sonido"
-            footer="Norte suena agudo y sur grave. Oeste a la izquierda, este a la derecha."
+            footer="Usa audífonos: la mitad izquierda del mapa suena en el oído izquierdo y la derecha en el derecho. Norte suena agudo y sur grave."
           >
             <Switch
               label="Rayos" description="Cada rayo nuevo es una nota" shortcut="1"
@@ -295,6 +306,28 @@ export default function App() {
                 <span className="row-value tabular">{shown.notesPerSec} notas/s</span>
               </div>
               <Gauge value={newSpring} label="Intensidad de rayos nuevos" valueText={`${shown.notesPerSec} notas por segundo`} />
+            </div>
+            <div className="row stack">
+              <div className="row-head">
+                <span className="row-label">Audífonos</span>
+                <span className="row-value">{playing ? sideLabel(shown.balance) : '—'}</span>
+              </div>
+              <div
+                className="balance"
+                role="meter"
+                aria-label="Balance izquierda derecha de los rayos nuevos"
+                aria-valuemin={-1}
+                aria-valuemax={1}
+                aria-valuenow={Number((shown.balance ?? 0).toFixed(2))}
+                aria-valuetext={sideLabel(shown.balance)}
+              >
+                <span className="balance-l">I</span>
+                <span className="balance-track">
+                  <span className="balance-mid" />
+                  <span className="balance-dot" style={{ left: `${50 + balanceSpring * 50}%` }} />
+                </span>
+                <span className="balance-r">D</span>
+              </div>
             </div>
             <div className="row">
               <div className="row-text">
