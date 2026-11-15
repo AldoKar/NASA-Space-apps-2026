@@ -7,3 +7,9 @@ mkdir -p public/video
 ffmpeg -y -i "$SRC" -vf "scale=2048:1024:flags=area,fps=30" \
   -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -movflags +faststart -an \
   public/video/lightning-2048.mp4
+
+# Copia para los fondos de la landing: baja resolución y solo 20 s (segundos 40 a 60), ~0.5 MB.
+# La app sigue usando lightning-2048.mp4 completo para el análisis.
+ffmpeg -y -ss 40 -t 20 -i public/video/lightning-2048.mp4 -vf "scale=640:320:flags=area" -an \
+  -c:v libx264 -preset slow -crf 27 -pix_fmt yuv420p -movflags +faststart \
+  public/video/lightning-landing.mp4

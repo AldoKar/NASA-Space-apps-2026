@@ -21,7 +21,7 @@ export default function Landing() {
       <main className="lp-col">
         {/* ── La pregunta ── */}
         <section id="acto-1" className="lp-act lp-hero" aria-labelledby="t1">
-          <PixelCanvas src="/video/lightning-2048.mp4" startAt={40} pixelSize={6} gain={1.6} />
+          <PixelCanvas src="/video/lightning-landing.mp4" pixelSize={6} gain={1.6} />
           <div className="lp-hero-inner">
             <h1 id="t1" className="lp-title">
               <span>¿Te has imaginado cómo suenan los fenómenos naturales?</span>
@@ -53,7 +53,7 @@ export default function Landing() {
         {/* ── Pieza: tormentas ── */}
         <section id="rayos" className="lp-act lp-piece" aria-labelledby="t-rayos">
           <div className="lp-piece-art">
-            <PixelCanvas src="/video/lightning-2048.mp4" startAt={12} pixelSize={5} gain={1.7} />
+            <PixelCanvas src="/video/lightning-landing.mp4" startAt={10} pixelSize={5} gain={1.7} />
           </div>
           <div className="lp-piece-text">
             <h2 id="t-rayos" className="lp-piece-title">Tormentas del planeta</h2>
@@ -73,7 +73,7 @@ export default function Landing() {
         {/* ── Pieza: incendio ── */}
         <section id="incendio" className="lp-act lp-piece lp-piece-flip" aria-labelledby="t-incendio">
           <div className="lp-piece-art">
-            <PixelCanvas src="/video/dixie-fire-landing.mp4" startAt={40} pixelSize={5} gain={1.15} />
+            <PixelCanvas src="/video/dixie-fire-landing.mp4" startAt={6} pixelSize={5} gain={1.15} />
           </div>
           <div className="lp-piece-text">
             <h2 id="t-incendio" className="lp-piece-title">Incendio Dixie, 2021</h2>
@@ -92,7 +92,7 @@ export default function Landing() {
 
         {/* ── Tu turno ── */}
         <section id="acto-4" className="lp-act lp-final" aria-labelledby="t4">
-          <PixelCanvasBackground src="/video/dixie-fire-landing.mp4" startAt={8} overlayOpacity={0.35} />
+          <PixelCanvasBackground src="/video/dixie-fire-landing.mp4" overlayOpacity={0.35} />
           <div className="lp-final-inner">
             <h2 id="t4" className="lp-title lp-title-sm">
               <span>Ponte audífonos y escucha la Tierra.</span>

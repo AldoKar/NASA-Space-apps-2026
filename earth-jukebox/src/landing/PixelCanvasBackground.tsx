@@ -32,7 +32,7 @@ export interface PixelCanvasBackgroundProps {
 const DEFAULT_PALETTE = ['#FF0000', '#000000', '#00BFFF', '#FFD700']
 
 export function PixelCanvasBackground({
-  src = '/video/dixie-fire-720.mp4',
+  src = '/video/dixie-fire-landing.mp4',
   pixelSize = 2,
   shapeMode = 'circles',
   colorMode = 'three',
