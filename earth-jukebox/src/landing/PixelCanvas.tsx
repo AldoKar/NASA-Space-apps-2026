@@ -44,7 +44,7 @@ function nasaLut(gain: number) {
   })
 }
 
-export function PixelCanvas({ src, pixelSize = 6, gain = 1, interactive = true, startAt = 0, className, style }: PixelCanvasProps) {
+export function PixelCanvas({ src, pixelSize = 6, gain = 1, interactive = false, startAt = 0, className, style }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const lut = useMemo(() => nasaLut(gain), [gain])
   useEffect(() => {

@@ -39,7 +39,7 @@ export function PixelCanvasBackground({
   palette = DEFAULT_PALETTE,
   contrast = 100,
   lightness = 100,
-  interactive = true,
+  interactive = false,
   overlayOpacity = 0.45,
   overlayBlur = 0,
   startAt = 0,

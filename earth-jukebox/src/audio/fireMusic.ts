@@ -19,10 +19,10 @@ export const FIRE_SLOT = 60 / FIRE_BPM / 4
 const PC: Record<string, number> = { C: 0, 'C#': 1, D: 2, E: 4, F: 5, G: 7, A: 9, Bb: 10 }
 
 export const FIRE_CHORDS: { name: string; tones: string[]; minIntensity: number }[] = [
-  { name: 'Re menor', tones: ['D', 'F', 'A', 'E'], minIntensity: 0 },
-  { name: 'Si♭ mayor 7', tones: ['Bb', 'D', 'F', 'A'], minIntensity: 0.08 },
-  { name: 'Sol menor 7', tones: ['G', 'Bb', 'D', 'F'], minIntensity: 0.25 },
-  { name: 'La 7', tones: ['A', 'C#', 'E', 'G'], minIntensity: 0.5 },
+  { name: 'D minor', tones: ['D', 'F', 'A', 'E'], minIntensity: 0 },
+  { name: 'B♭ major 7', tones: ['Bb', 'D', 'F', 'A'], minIntensity: 0.08 },
+  { name: 'G minor 7', tones: ['G', 'Bb', 'D', 'F'], minIntensity: 0.25 },
+  { name: 'A7', tones: ['A', 'C#', 'E', 'G'], minIntensity: 0.5 },
 ]
 
 /** Intensidad del fuego (0..1) a partir del fuego activo y del frente. */

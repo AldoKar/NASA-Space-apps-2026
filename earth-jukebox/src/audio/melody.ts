@@ -21,9 +21,9 @@ import { lonToPan } from './mapping'
 export type Region = 'oeste' | 'centro' | 'este'
 
 export const REGION_NAME: Record<Region, string> = {
-  oeste: 'América',
-  centro: 'Europa y África',
-  este: 'Asia y Oceanía',
+  oeste: 'Americas',
+  centro: 'Europe and Africa',
+  este: 'Asia and Oceania',
 }
 
 /** Registro (notas MIDI) de cada voz. Se traslapan un poco para que las voces se toquen. */

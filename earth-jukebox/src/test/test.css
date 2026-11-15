@@ -1,0 +1,52 @@
+/* /test — Prueba de voz */
+html:has(.vt), html:has(.vt) body { background: #000; color-scheme: dark; }
+.vt {
+  --nasa: #0b3d91; --signal: #3d86ff; --ice: #c9dcff; --line: rgba(61, 134, 255, 0.22);
+  max-width: 920px; margin: 0 auto; padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem) 4rem;
+  color: #fff; font-family: 'Aileron', system-ui, sans-serif;
+}
+.vt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem; }
+.vt-head h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.vt-head p { margin: 0.6rem 0 0; color: var(--ice); max-width: 52ch; }
+.vt-link { color: var(--signal); font-weight: 700; }
+.vt-controls { display: grid; gap: 1rem; margin-bottom: 1.5rem; }
+.vt-engines { display: inline-flex; padding: 3px; border-radius: 12px; border: 1px solid var(--line); background: rgba(61, 134, 255, 0.08); width: fit-content; }
+.vt-engines button { border: 0; background: none; color: var(--ice); font: inherit; font-weight: 600; padding: 0.55rem 1rem; border-radius: 9px; cursor: pointer; min-height: 2.75rem; }
+.vt-engines button[aria-checked='true'] { background: var(--nasa); color: #fff; font-weight: 800; }
+.vt-start {
+  width: fit-content; min-height: 3rem; padding: 0.7rem 1.6rem; border-radius: 999px; border: 0; cursor: pointer;
+  background: #fff; color: #000; font: inherit; font-weight: 800; font-size: 1.05rem; box-shadow: 0 4px 18px rgba(61, 134, 255, 0.4);
+}
+.vt-start.is-on { background: #ff4d4d; color: #fff; }
+.vt-status { margin: 0; color: var(--ice); font-weight: 600; }
+.vt-device { color: rgba(201, 220, 255, 0.7); font-weight: 400; }
+.vt-meter-wrap { margin-bottom: 1.75rem; }
+.vt-meter { position: relative; height: 18px; border-radius: 99px; background: rgba(61, 134, 255, 0.1); border: 1px solid var(--line); overflow: hidden; }
+.vt-meter-fill { position: absolute; inset: 0 auto 0 0; width: var(--lvl, 0%); background: rgba(201, 220, 255, 0.55); transition: width 60ms linear; }
+.vt-meter[data-speaking='true'] .vt-meter-fill { background: var(--signal); }
+.vt-meter-floor, .vt-meter-thr { position: absolute; top: -2px; bottom: -2px; width: 2px; }
+.vt-meter-floor { left: var(--floor, 0%); background: #ffb02e; }
+.vt-meter-thr { left: var(--thr, 0%); background: #fff; }
+.vt-legend { margin: 0.6rem 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; color: var(--ice); font-size: 0.875rem; }
+.vt-key { display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: -0.4rem; }
+.vt-key-fill { background: rgba(201, 220, 255, 0.55); }
+.vt-key-floor { background: #ffb02e; width: 3px; }
+.vt-key-thr { background: #fff; width: 3px; }
+.vt-interim { margin: 0 0 1.25rem; padding: 0.9rem 1rem; border-radius: 12px; border: 1px dashed var(--line); color: var(--ice); font-size: 1.15rem; }
+.vt-interim span { color: var(--signal); font-weight: 700; font-size: 0.9rem; margin-right: 0.4rem; }
+.vt-list { display: grid; gap: 0.75rem; }
+.vt-empty { color: var(--ice); }
+.vt-item { padding: 1rem 1.15rem; border-radius: 14px; border: 1px solid var(--line); background: #050a17; }
+.vt-item.is-junk { opacity: 0.6; }
+.vt-meta { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; color: rgba(201, 220, 255, 0.7); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.vt-raw { margin: 0.4rem 0 0.35rem; font-size: clamp(1.15rem, 2.2vw, 1.4rem); font-weight: 700; line-height: 1.3; }
+.vt-alts { margin: 0 0 0.35rem; color: var(--ice); font-size: 0.9rem; }
+.vt-cmd { margin: 0; color: var(--ice); }
+.vt-cmd strong { color: #fff; }
+.vt-cmd-none { color: rgba(201, 220, 255, 0.6); }
+.vt-cmd-junk { color: #ffb02e; }
+.vt-sens { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-top: 1.1rem; font-weight: 700; }
+.vt-sens input { flex: 1 1 14rem; accent-color: var(--signal); min-height: 2.75rem; }
+.vt-sens-val { color: var(--ice); font-weight: 600; min-width: 13rem; }
+.vt-hint { margin: 0.35rem 0 0; color: var(--ice); font-size: 0.9rem; max-width: 70ch; }
+.vt-drop { padding: 0.6rem 1.15rem; background: transparent; border-style: dashed; }

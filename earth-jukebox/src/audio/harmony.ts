@@ -41,11 +41,11 @@ export function slotAllows(sub: number, candidates: number): boolean {
  * La latitud promedio medida en el video oscila aprox. entre -14° y +32°.
  */
 export const SEASON_CHORDS: { maxLat: number; notes: string[]; tones: string[]; name: string }[] = [
-  { maxLat: -8, notes: ['D2', 'A2', 'F3', 'C4'], tones: ['D', 'F', 'A', 'C'], name: 'Re menor' },
-  { maxLat: 4, notes: ['F2', 'C3', 'A3', 'E4'], tones: ['F', 'A', 'C', 'E'], name: 'Fa mayor' },
-  { maxLat: 16, notes: ['G2', 'D3', 'A3', 'F4'], tones: ['G', 'A', 'D', 'F'], name: 'Sol suspendido' },
-  { maxLat: 26, notes: ['A2', 'E3', 'C4', 'G4'], tones: ['A', 'C', 'E', 'G'], name: 'La menor' },
-  { maxLat: 999, notes: ['C3', 'G3', 'E4', 'D5'], tones: ['C', 'D', 'E', 'G'], name: 'Do mayor' },
+  { maxLat: -8, notes: ['D2', 'A2', 'F3', 'C4'], tones: ['D', 'F', 'A', 'C'], name: 'D minor' },
+  { maxLat: 4, notes: ['F2', 'C3', 'A3', 'E4'], tones: ['F', 'A', 'C', 'E'], name: 'F major' },
+  { maxLat: 16, notes: ['G2', 'D3', 'A3', 'F4'], tones: ['G', 'A', 'D', 'F'], name: 'G suspended' },
+  { maxLat: 26, notes: ['A2', 'E3', 'C4', 'G4'], tones: ['A', 'C', 'E', 'G'], name: 'A minor' },
+  { maxLat: 999, notes: ['C3', 'G3', 'E4', 'D5'], tones: ['C', 'D', 'E', 'G'], name: 'C major' },
 ]
 
 const PITCH_CLASS: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }

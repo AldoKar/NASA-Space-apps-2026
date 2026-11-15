@@ -28,21 +28,20 @@ export const TRACKS: Track[] = [
   {
     id: 'rayos',
     kind: 'lightning',
-    short: 'Tormentas',
-    title: 'Tormentas del planeta',
-    subtitle: 'Rayos detectados desde la Estación Espacial Internacional, 2017–2023',
+    short: 'Storms',
+    title: 'Storms of the planet',
+    subtitle: 'Lightning detected from the International Space Station, 2017–2023',
     videoSrc: '/video/lightning-2048.mp4',
     aspect: 2,
     periodStart: 'Mar 2017',
     periodEnd: 'Jul 2023',
     visualDescription:
-      'Mapa plano del mundo en tonos grises sobre fondo oscuro. Cada punto amarillo es un rayo ' +
-      'detectado por el sensor LIS de la Estación Espacial Internacional. Cada cuadro muestra los ' +
-      'rayos de los últimos 10 días, así que los puntos aparecen, se quedan unos días y desaparecen. ' +
-      'Con las estaciones del año, la mayor parte de las tormentas se desplaza entre el hemisferio ' +
-      'norte y el hemisferio sur.',
+      'Flat world map in shades of gray on a dark background. Each yellow dot is a lightning flash ' +
+      'detected by the LIS sensor on the International Space Station. Each frame shows the last 10 ' +
+      'days of lightning, so dots appear, stay for a few days and fade away. With the seasons, most ' +
+      'storms move between the northern and southern hemispheres.',
     dataNote:
-      'El sensor LIS solo ve cada zona cuando la Estación Espacial pasa por encima: es una muestra de los rayos del planeta, no un conteo total.',
+      'The LIS sensor only sees each area when the Space Station passes overhead: it is a sample of the planet’s lightning, not a full count.',
     source: {
       label: 'NASA SVS #5011 — Lightning Events Detected from the ISS 2017-2023',
       url: 'https://svs.gsfc.nasa.gov/5011/',
@@ -51,21 +50,21 @@ export const TRACKS: Track[] = [
   {
     id: 'incendio',
     kind: 'fire',
-    short: 'Incendio Dixie',
-    title: 'Incendio Dixie, 2021',
-    subtitle: '100 días de un incendio en California, detectado por el satélite Suomi-NPP',
+    short: 'Dixie Fire',
+    title: 'Dixie Fire, 2021',
+    subtitle: '100 days of a California wildfire, detected by the Suomi-NPP satellite',
     videoSrc: '/video/dixie-fire-720.mp4',
     aspect: 16 / 9,
-    periodStart: '14 jul 2021',
-    periodEnd: '22 oct 2021',
+    periodStart: 'Jul 14, 2021',
+    periodEnd: 'Oct 22, 2021',
     visualDescription:
-      'Vista 3D de montañas y bosques del norte de California, con el lago Almanor. Los puntos rojos ' +
-      'son fuego activo detectado por el sensor VIIRS; las líneas amarillas, la posición más reciente ' +
-      'del frente; la zona gris, el área quemada, que crece durante 100 días. La cámara se aleja durante ' +
-      'las primeras semanas. A la derecha, una gráfica del área quemada acumulada; arriba a la izquierda, ' +
-      'la fecha. Al final, un resumen dibuja todas las líneas del fuego en colores.',
+      '3D view of the mountains and forests of Northern California, with Lake Almanor. Red dots are ' +
+      'active fire detected by the VIIRS sensor; yellow lines, the latest position of the fire front; ' +
+      'the gray area, the burned area, which grows over 100 days. The camera zooms out during the first ' +
+      'weeks. On the right, a chart of the cumulative burned area; at the top left, the date. At the end, ' +
+      'a recap draws all the fire lines in color.',
     dataNote:
-      'El sensor VIIRS detecta el fuego cada 12 horas. Izquierda y derecha se refieren a la pantalla (la cámara se mueve), y el área quemada es la que se ve en pantalla, relativa al total.',
+      'The VIIRS sensor detects fire every 12 hours. Left and right refer to the screen (the camera moves), and the burned area is what is visible on screen, relative to the total.',
     source: {
       label: 'NASA SVS #4993 — Spread of the Dixie Fire 2021',
       url: 'https://svs.gsfc.nasa.gov/4993/',

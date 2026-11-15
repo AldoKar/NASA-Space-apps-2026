@@ -1,0 +1,52 @@
+/* Botón de comandos de voz (landing y app) */
+.voice { position: relative; display: inline-flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; font-family: 'Aileron', system-ui, sans-serif; }
+.voice-floating { position: fixed; right: clamp(0.75rem, 2vw, 1.5rem); bottom: clamp(0.75rem, 2vw, 1.5rem); z-index: 60; }
+.voice-btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0.5rem 1.1rem 0.5rem 0.85rem;
+  border-radius: 999px; border: 1px solid rgba(61, 134, 255, 0.45); cursor: pointer;
+  background: rgba(5, 10, 23, 0.85); color: #fff; font: inherit; font-weight: 700; font-size: 0.9375rem;
+  box-shadow: 0 6px 24px rgba(11, 61, 145, 0.45);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  transition: background-color 150ms ease, transform 120ms ease;
+}
+.voice-btn:hover { background: rgba(11, 61, 145, 0.9); }
+.voice-btn:active { transform: scale(0.97); }
+.voice-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.voice.is-on .voice-btn { background: #0b3d91; border-color: #3d86ff; }
+.voice-icon { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; }
+.voice-icon svg { width: 1.25rem; height: 1.25rem; }
+.voice-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.6); }
+@media (prefers-reduced-motion: no-preference) {
+  .voice-dot { animation: voice-pulse 1.6s ease-out infinite; }
+  @keyframes voice-pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.6); } 100% { box-shadow: 0 0 0 10px rgba(255, 77, 77, 0); } }
+}
+.voice-bubble {
+  margin: 0; max-width: min(22rem, 80vw); padding: 0.6rem 0.85rem; border-radius: 12px;
+  background: rgba(5, 10, 23, 0.92); border: 1px solid rgba(61, 134, 255, 0.3); color: #c9dcff;
+  font-size: 0.875rem; line-height: 1.4; text-align: left; display: grid; gap: 0.2rem;
+}
+.voice-floating .voice-bubble { order: -1; }
+.voice-inline .voice-bubble { position: absolute; top: calc(100% + 0.5rem); right: 0; width: max-content; z-index: 8; }
+.voice-heard { color: #fff; font-weight: 600; }
+.voice-reply { color: #c9dcff; }
+@media (prefers-reduced-transparency: reduce) { .voice-btn, .voice-bubble { background: #050a17; backdrop-filter: none; } }
+.voice-row { display: inline-flex; align-items: center; gap: 0.5rem; }
+.voice-noise {
+  min-height: 2.75rem; padding: 0.4rem 0.9rem; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(61, 134, 255, 0.35); background: rgba(5, 10, 23, 0.85); color: #c9dcff;
+  font: inherit; font-weight: 600; font-size: 0.8125rem;
+}
+.voice-noise:hover { color: #fff; }
+.voice-noise[aria-pressed='true'] { background: #fff; color: #000; border-color: #fff; }
+.voice-dot.is-active { background: #3d86ff; }
+.voice-label { font-variant-numeric: tabular-nums; }
+/* Selector de reconocedor: Whisper large | Chrome */
+.voice-engine { display: inline-flex; padding: 3px; border-radius: 999px; border: 1px solid rgba(61, 134, 255, 0.35); background: rgba(5, 10, 23, 0.85); }
+.voice-engine button {
+  border: 0; background: none; color: #c9dcff; font: inherit; font-weight: 600; font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem; border-radius: 999px; cursor: pointer; min-height: 2.25rem;
+}
+.voice-engine button[aria-checked='true'] { background: #0b3d91; color: #fff; font-weight: 800; }
+.voice-mic { margin: 0; max-width: 26rem; color: #c9dcff; font-size: 0.75rem; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.voice-floating .voice-mic { background: rgba(5, 10, 23, 0.85); padding: 0.2rem 0.6rem; border-radius: 8px; }
+@media (max-width: 640px) { .voice-row { flex-wrap: wrap; justify-content: flex-end; } .voice-mic { max-width: 80vw; } }

@@ -16,6 +16,7 @@ npm run dev        # abre http://localhost:5173
 - `http://localhost:5173/` → **landing en cuatro actos** (la pregunta, lo que no se ve, dos fenómenos,
   tu turno), en azul y negro. Su estructura está adaptada de la landing de CareMap; el fondo de
   píxeles se dibuja a partir de los propios videos de la NASA (`src/landing/`).
+- `http://localhost:5173/test` → prueba de voz: muestra el texto crudo que obtiene Whisper (o Google) del micrófono, el nivel del micrófono contra el ruido de fondo y qué comando entendería la app, sin ejecutarlo.
 - `http://localhost:5173/symphony` → la app (`/jukebox` sigue funcionando). `?pista=rayos` o `?pista=incendio` abre una pista.
 
 Si se publica en un hosting estático, configura que `/symphony` (y `/jukebox`) sirvan `index.html` (fallback de SPA). En Vercel ya está resuelto con `vercel.json`.
@@ -199,3 +200,42 @@ reanudaciones del audio, milisegundos de análisis por cuadro y estado del audio
 
 NASA Scientific Visualization Studio — *Lightning Events Detected from the ISS 2017-2023*,
 https://svs.gsfc.nasa.gov/5011/
+
+## Comandos de voz (manos libres)
+
+Botón **Activar voz** (o tecla **V**) en la landing y en la app.
+
+**Reconocimiento:** junto al botón de voz eliges **Whisper large** o **Chrome**; la elección se guarda
+y la usan la app, la landing y `/test`. Mientras escucha, abajo del botón se ve qué reconocedor y qué
+micrófono se están usando.
+
+- **Whisper large** (recomendado): Whisper large-v3 en OpenRouter, a través de la función de servidor
+  `api/transcribe.ts`; la API key nunca llega a la página.
+  - En Vercel: Settings → Environment Variables → `OPENROUTER_API_KEY` = tu key (y vuelve a desplegar).
+  - En local: crea `earth-jukebox/.env.local` con `OPENROUTER_API_KEY=tu-key` (no se sube a git) y corre `npm run dev`.
+  - Recomendado: ponle un límite de crédito a la key en OpenRouter, porque la ruta es pública.
+  - El micrófono se abre con la supresión de ruido y la cancelación de eco del navegador.
+  - Un detector de voz (`src/voice/vad.ts`) corta las frases. El ruido de fondo se mide con los picos de
+    los últimos 3 s, así que la plática de alrededor queda debajo y solo cruza una voz pegada al micrófono.
+    Lo que dura más de 4.5 s (plática o ruido continuo) se descarta sin mandarlo a Whisper.
+  - La **sensibilidad** se ajusta en `/test` mirando el medidor; la app usa el mismo valor.
+  - Se descartan las frases que Whisper inventa con ruido ("Gracias por ver", "Amara.org"…).
+  - Si falla (sin key, sin internet o sin saldo), avisa y usa Chrome de respaldo.
+- **Chrome**: el reconocimiento de voz de Chrome (Google), con el micrófono predeterminado del sistema.
+
+Responde con la voz del navegador (`speechSynthesis`). El navegador pide permiso del micrófono una vez.
+
+La app está en inglés, y los comandos de voz también:
+- Reproducción: *play*, *pause*, *resume* / *keep going*, *restart*, *skip / go back 10 seconds*, *slower*, *normal speed*.
+- Navegar: *take me to the fire*, *take me to the storms*, *take me home*; en la landing, *start the tour*, *next*, *previous* (lee cada sección en voz alta).
+- Sonido: *volume up / down*, *turn off the thunder*, *turn on the fire*, etc.
+- Accesibilidad: *describe this moment*, *what can I say?*, *stop listening*.
+- Con ruido: *noise mode* → solo obedece lo que va después de **"Symphony"** (*Symphony, pause*); *normal mode* lo quita.
+
+Con ruido: la app revisa las últimas palabras mientras hablas (no espera al silencio, que con gente
+alrededor nunca llega), ejecuta en cuanto el comando es claro y reinicia la escucha para no acumular.
+Di **noise mode** (o usa el botón) para que solo obedezca lo que va después de **"Symphony"**
+(*Symphony, pause*); **normal mode** lo quita. Ayuda mucho un micrófono de diadema cerca de la boca.
+
+La landing y la app cambian de página sin recargar, para que el micrófono siga escuchando y el navegador
+permita arrancar el sonido con un comando de voz. Código en `src/voice/` (el intérprete de frases tiene pruebas).

@@ -69,7 +69,7 @@ export function Section(props: { title: string; footer?: ReactNode; moreLabel?: 
     <section className={`group ${props.className ?? ''}`}>
       <h3 className="group-title">{props.title}</h3>
       <div className="group-body">{props.children}</div>
-      {props.footer && <More label={props.moreLabel ?? 'Cómo funciona'}>{props.footer}</More>}
+      {props.footer && <More label={props.moreLabel ?? 'How it works'}>{props.footer}</More>}
     </section>
   )
 }

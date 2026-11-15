@@ -225,6 +225,6 @@ export class LightningDetector {
 /** Texto legible de una latitud: 23.4 → "23° N". */
 export function formatLat(lat: number): string {
   const a = Math.round(Math.abs(lat))
-  if (a === 0) return '0° (ecuador)'
+  if (a === 0) return '0° (equator)'
   return `${a}° ${lat > 0 ? 'N' : 'S'}`
 }

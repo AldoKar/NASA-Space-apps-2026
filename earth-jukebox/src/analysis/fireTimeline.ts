@@ -21,11 +21,11 @@ export function fireDay(videoTime: number): number {
   return DAY_BY_SECOND[i] + (DAY_BY_SECOND[j] - DAY_BY_SECOND[i]) * (t - i)
 }
 
-const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-/** "21 jul 2021" */
+/** "Jul 21, 2021" */
 export function fireDateLabel(day: number): string {
   const d = new Date(FIRE_START)
   d.setDate(d.getDate() + Math.round(day))
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
 }

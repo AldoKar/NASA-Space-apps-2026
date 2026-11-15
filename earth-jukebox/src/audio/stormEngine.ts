@@ -327,7 +327,9 @@ export class StormEngine {
     }
 
     // 3) Tocar los tiempos del pulso que caen dentro de la ventana de anticipación.
-    if (this.nextSlot < 0 || this.nextSlot < now - SLOT) this.nextSlot = Math.ceil(now / SLOT) * SLOT
+    // Después de una trabada, los tiempos que ya pasaron se saltan (no se tocan todos juntos: "palomitas").
+    const earliest = Tone.getContext().currentTime + 0.03
+    if (this.nextSlot < 0 || this.nextSlot < earliest) this.nextSlot = Math.ceil(Math.max(now - SLOT, earliest) / SLOT) * SLOT
     const played: PlayedStrike[] = []
     let thunder: Strike | null = null
     let flushed = 0

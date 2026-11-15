@@ -260,7 +260,7 @@ export class FireEngine {
         this.droneChord = -1
         this.playCoda(now + 0.1)
       }
-      return { marks: [], chord: 'Re menor', phase: 'resumen', intensity: 0 }
+      return { marks: [], chord: 'D minor', phase: 'resumen', intensity: 0 }
     }
 
     this.chord = fireChordFor(this.intensity, this.chord)
@@ -277,7 +277,9 @@ export class FireEngine {
     this.droneTremolo.depth.rampTo(Math.min(0.6, f.growth * 0.8), 0.6)
 
     // Pulso
-    if (this.nextSlot < 0 || this.nextSlot < now - FIRE_SLOT) this.nextSlot = Math.ceil(now / FIRE_SLOT) * FIRE_SLOT
+    // Después de una trabada, los tiempos que ya pasaron se saltan (no se tocan todos juntos: "palomitas").
+    const earliest = Tone.getContext().currentTime + 0.03
+    if (this.nextSlot < 0 || this.nextSlot < earliest) this.nextSlot = Math.ceil(Math.max(now - FIRE_SLOT, earliest) / FIRE_SLOT) * FIRE_SLOT
     const marks: FireMark[] = []
     let n = 0
     while (this.nextSlot < now + LOOKAHEAD && n++ < MAX_SLOTS_PER_UPDATE) {
