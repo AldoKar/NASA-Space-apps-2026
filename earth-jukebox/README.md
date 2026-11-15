@@ -18,7 +18,7 @@ npm run dev        # abre http://localhost:5173
   píxeles se dibuja a partir de los propios videos de la NASA (`src/landing/`).
 - `http://localhost:5173/symphony` → la app (`/jukebox` sigue funcionando). `?pista=rayos` o `?pista=incendio` abre una pista.
 
-Si se publica en un hosting estático, configura que `/symphony` (y `/jukebox`) sirvan `index.html` (fallback de SPA).
+Si se publica en un hosting estático, configura que `/symphony` (y `/jukebox`) sirvan `index.html` (fallback de SPA). En Vercel ya está resuelto con `vercel.json`.
 
 El video web ya está en `public/video/lightning-2048.mp4` (22 MB). Si hace falta regenerarlo
 a partir del original de la NASA (334 MB):
