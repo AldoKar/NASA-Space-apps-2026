@@ -5,6 +5,8 @@ import type { PlayedStrike } from '../audio/stormEngine'
 export interface StrikeOverlayHandle {
   addStrikes: (s: PlayedStrike[]) => void
   addThunder: (s: Strike) => void
+  /** Marcas del incendio: fuego activo (rojo) o frente (amarillo). x, y en fracciones del video. */
+  addMarks: (m: { x: number; y: number; kind: 'fuego' | 'frente' }[]) => void
 }
 
 interface Ring {
@@ -15,6 +17,7 @@ interface Ring {
   /** 1 = grande, 1.6 = muy grande */
   scale: number
   ocean: boolean
+  color?: string
 }
 
 /**
@@ -32,6 +35,11 @@ export const StrikeOverlay = forwardRef<StrikeOverlayHandle, { reducedMotion: bo
         for (const k of s)
           rings.current.push({ x: k.x, y: k.y, born: now, big: false, scale: k.level === 'muy grande' ? 1.6 : 1, ocean: !k.land })
         if (rings.current.length > 200) rings.current.splice(0, rings.current.length - 200)
+      },
+      addMarks(ms) {
+        const now = performance.now()
+        for (const m of ms)
+          rings.current.push({ x: m.x, y: m.y, born: now, big: m.kind === 'fuego', scale: m.kind === 'fuego' ? 0.8 : 1.2, ocean: false, color: m.kind === 'fuego' ? '255, 90, 60' : '255, 236, 120' })
       },
       addThunder(s) {
         rings.current.push({ x: s.x, y: s.y, born: performance.now(), big: true, scale: 1, ocean: false })
@@ -62,7 +70,9 @@ export const StrikeOverlay = forwardRef<StrikeOverlayHandle, { reducedMotion: bo
             const radius = (reducedMotion ? (r.big ? 10 : 5) : r.big ? 12 + t * 60 : 3 + t * 16) * r.scale
             ctx.beginPath()
             ctx.arc(r.x * w, r.y * h, radius, 0, Math.PI * 2)
-            ctx.strokeStyle = r.big
+            ctx.strokeStyle = r.color
+              ? `rgba(${r.color}, ${alpha})`
+              : r.big
               ? `rgba(160, 200, 255, ${alpha * 0.9})`
               : r.ocean
                 ? `rgba(130, 220, 255, ${alpha})`

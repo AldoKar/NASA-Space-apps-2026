@@ -9,17 +9,19 @@ export function Switch(props: {
   shortcut?: string
 }) {
   const id = `sw-${props.label.replace(/\s+/g, '-').toLowerCase()}`
+  // La explicación no se muestra (la pantalla queda limpia), pero el lector de pantalla la lee.
   return (
     <div className="row">
       <div className="row-text">
         <span className="row-label" id={id}>{props.label}</span>
-        {props.description && <span className="row-sub">{props.description}</span>}
+        {props.description && <span className="sr-only" id={`${id}-desc`}>{props.description}</span>}
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={props.checked}
         aria-labelledby={id}
+        aria-describedby={props.description ? `${id}-desc` : undefined}
         aria-keyshortcuts={props.shortcut}
         className="switch"
         onClick={() => props.onChange(!props.checked)}
@@ -61,14 +63,29 @@ export function Segmented<T extends string | number>(props: {
   )
 }
 
-/** Sección agrupada estilo "inset grouped" de iOS. */
-export function Section(props: { title: string; footer?: ReactNode; children: ReactNode }) {
+/** Sección agrupada. La explicación (footer) queda plegada detrás de una flecha. */
+export function Section(props: { title: string; footer?: ReactNode; moreLabel?: string; className?: string; children: ReactNode }) {
   return (
-    <section className="group">
+    <section className={`group ${props.className ?? ''}`}>
       <h3 className="group-title">{props.title}</h3>
       <div className="group-body">{props.children}</div>
-      {props.footer && <p className="group-footer">{props.footer}</p>}
+      {props.footer && <More label={props.moreLabel ?? 'Cómo funciona'}>{props.footer}</More>}
     </section>
+  )
+}
+
+/** Texto plegable: una flecha que despliega la explicación (details/summary nativo, accesible por teclado). */
+export function More(props: { label: string; id?: string; children: ReactNode }) {
+  return (
+    <details className="more">
+      <summary>
+        <span className="more-chevron" aria-hidden="true">
+          <svg viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </span>
+        {props.label}
+      </summary>
+      <p className="more-body" id={props.id}>{props.children}</p>
+    </details>
   )
 }
 

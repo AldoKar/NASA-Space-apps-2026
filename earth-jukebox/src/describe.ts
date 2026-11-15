@@ -33,3 +33,23 @@ export function describeMoment(f: FrameFeatures, progressPct: number, balance: n
     `Vas en el ${Math.round(progressPct)} por ciento del periodo 2017 a 2023.`
   )
 }
+
+/** Descripción en palabras del momento del incendio, para lectores de pantalla. */
+export function describeFire(opts: {
+  date: string
+  day: number
+  phase: string
+  active: number
+  front: number
+  frontX: number
+  burned: number
+}): string {
+  if (opts.phase === 'resumen') return `Resumen final del incendio, 22 de octubre de 2021. Ya no hay fuego activo.`
+  const level = (v: number) => (v < 0.05 ? 'casi nulo' : v < 0.25 ? 'bajo' : v < 0.5 ? 'medio' : 'alto')
+  const side = opts.frontX < 0 ? '' : opts.frontX < 0.4 ? ', avanzando por la izquierda de la pantalla' : opts.frontX > 0.6 ? ', avanzando por la derecha de la pantalla' : ', avanzando por el centro'
+  return (
+    `${opts.date}, día ${Math.round(opts.day)} de 100. Fase: ${opts.phase}. ` +
+    `Fuego activo ${level(opts.active)}. Frente ${level(opts.front)}${opts.front >= 0.05 ? side : ''}. ` +
+    `Área quemada: ${Math.round(opts.burned * 100)} por ciento de la que se verá al final.`
+  )
+}

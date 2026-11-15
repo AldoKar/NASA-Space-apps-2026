@@ -1,4 +1,4 @@
-# Earth Jukebox — Tormentas del planeta
+# The Earth Symphony — Tormentas del planeta e Incendio Dixie
 
 Sonificación accesible de una visualización del **NASA Earth Information Center**:
 los rayos detectados por el sensor LIS de la Estación Espacial Internacional (2017–2023)
@@ -12,6 +12,13 @@ se convierten en música **leyendo los píxeles del video en tiempo real**.
 npm install
 npm run dev        # abre http://localhost:5173
 ```
+
+- `http://localhost:5173/` → **landing en cuatro actos** (la pregunta, lo que no se ve, dos fenómenos,
+  tu turno), en azul y negro. Su estructura está adaptada de la landing de CareMap; el fondo de
+  píxeles se dibuja a partir de los propios videos de la NASA (`src/landing/`).
+- `http://localhost:5173/symphony` → la app (`/jukebox` sigue funcionando). `?pista=rayos` o `?pista=incendio` abre una pista.
+
+Si se publica en un hosting estático, configura que `/symphony` (y `/jukebox`) sirvan `index.html` (fallback de SPA).
 
 El video web ya está en `public/video/lightning-2048.mp4` (22 MB). Si hace falta regenerarlo
 a partir del original de la NASA (334 MB):
@@ -94,6 +101,40 @@ cada punto tiene solo latitud, longitud y hora). Lo que se mide es cuántos rayo
 **Validación con el video real:** la latitud promedio medida oscila cada año entre
 ≈ +32° (verano boreal) y ≈ −14° (verano austral): ese es el ciclo de las estaciones que se
 escucha en la capa *Estaciones*.
+
+## Pista 2 · Incendio Dixie, 2021
+
+Fuente: [NASA SVS #4993 — Spread of the Dixie Fire 2021](https://svs.gsfc.nasa.gov/4993/)
+(video web en `public/video/dixie-fire-720.mp4`; para regenerarlo: `bash scripts/prepare-fire-video.sh <original>`). La landing usa una copia recortada sin gráfica ni fecha, `public/video/dixie-fire-landing.mp4` (el mismo script la genera).
+Abre la app con `?pista=incendio` para ir directo a esta pista.
+
+### Cómo se eligió el método (medido sobre los 3068 cuadros del video)
+
+| Señal | Método elegido | Por qué (lo que se midió) |
+|---|---|---|
+| Fuego activo | píxeles rojos (≈236, 24, 21), menos ~40 de la barra de escala | casi nada del terreno se le parece |
+| Frente | amarillo brillante (≈248, 234, 110) con verde alto y azul muy bajo | un filtro simple confundía el desierto (≈212, 187, 128): ~2,000 píxeles falsos al inicio |
+| Área quemada | gris del mapa, guardando el máximo | la gráfica es semitransparente (el gris del mapa se ve a través) y su línea naranja desaparece en septiembre |
+| Fecha | tabla leída del propio video (OCR de la fecha, 2 veces/s, limpiada) | el video NO avanza parejo: ~0.8 días/s hasta septiembre y mucho más rápido después |
+| Resumen final | la gráfica se rellena de rojo (desde el segundo 96) | si no, el resumen se leería como un incendio gigante |
+
+Lo que muestra el detector: calma → **primera ola** (18–23 jul) → respiro → **segunda ola** (agosto)
+→ bajada → contenido (desde ~11 sep) → resumen.
+
+### Reglas de sonificación (mismo idioma que los rayos)
+
+| Capa | Dato | Sonido |
+|---|---|---|
+| **Fuego activo** | cantidad de rojo | crepitar en el pulso (0–3 por tiempo); con fuego muy intenso, latido grave en la nota del acorde |
+| **Frente** | cantidad de amarillo | voz cálida que camina por las notas del acorde (máx. 2 pasos): más frente = más agudo y más notas por tiempo |
+| | lado de la pantalla | audífono izquierdo/derecho (la cámara se mueve: es lado de pantalla, no geográfico) |
+| **Área quemada** | gris acumulado | colchón grave en la nota base; se abre y sube con el área; late mientras crece |
+| **Armonía** | intensidad del fuego | Re menor (calma) → Si♭ (creciendo) → Sol menor (intenso) → La 7 (caos); al bajar vuelve a Re menor |
+| **Cierre** | resumen final del video | se apaga todo y suena un arpegio lento de Re menor de izquierda a derecha |
+
+Pulso a 84 BPM (más solemne que los rayos) y el mismo control de saturación. Simulación sobre el video
+completo (`validate/fireMusic.real.test.ts`): máx. 9 notas/s, melodía sin saltos grandes, 16 cambios de
+acorde en 100 días, cierre en el segundo 96.1.
 
 ## Diseño
 

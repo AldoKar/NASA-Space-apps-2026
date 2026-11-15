@@ -289,3 +289,190 @@ button:active { transition-duration: 100ms; }
   transform: translate(-50%, -50%); background: var(--accent-ink);
   box-shadow: 0 0 0 3px var(--surface);
 }
+
+/* Selector de pistas de The Earth Symphony */
+.track-picker { margin-top: 1.1rem; display: flex; }
+.track-picker .segmented { min-width: 18rem; }
+.track-picker .segmented button { padding: 0.45rem 1rem; font-size: 0.9375rem; }
+.video-wrap { transition: aspect-ratio 300ms ease; }
+
+/* Enlace al inicio (landing) */
+.app-home { display: inline-flex; align-items: center; gap: 0.5rem; color: inherit; text-decoration: none; }
+.app-home:hover { color: var(--label); }
+
+/* ═════════ Tema de la landing: negro, azul NASA y tipografía pesada ═════════
+   Solo cambia los colores y la tipografía; la estructura y la accesibilidad quedan igual. */
+html:has(.app), html:has(.app) body { background: #000; color-scheme: dark; }
+.app {
+  --lp-nasa: #0b3d91;
+  --lp-signal: #3d86ff;
+  --lp-ice: #c9dcff;
+  --lp-line: rgba(61, 134, 255, 0.18);
+  --bg: #000;
+  --surface: #050a17;
+  --label: #fff;
+  --label-2: var(--lp-ice);
+  --label-3: rgba(201, 220, 255, 0.4);
+  --separator: var(--lp-line);
+  --fill: rgba(61, 134, 255, 0.14);
+  --fill-2: rgba(61, 134, 255, 0.26);
+  --accent: #fff;
+  --accent-ink: var(--lp-signal);
+  --on-accent: #000;
+  --green: var(--lp-signal);
+  --green-ink: var(--lp-signal);
+  --focus: var(--lp-signal);
+  --thumb: var(--lp-nasa);
+  --shadow: none;
+  --stage-shadow: 0 0 0 1px var(--lp-line), 0 30px 80px -30px rgba(11, 61, 145, 0.55);
+  color: #fff;
+  color-scheme: dark;
+}
+
+/* Encabezado como las secciones de la landing */
+.app .app-name { color: var(--lp-signal); font-weight: 700; }
+.app .app-glyph { background: var(--lp-nasa); }
+.app .app-glyph::after { background: #fff; }
+.app .display { font-size: clamp(2.6rem, 5.2vw, 4.4rem); line-height: 1.02; letter-spacing: -0.035em; }
+.app .lede { color: var(--lp-ice); }
+.app .track-picker .segmented { background: rgba(61, 134, 255, 0.12); border: 1px solid var(--lp-line); }
+.app .segmented-thumb { background: var(--lp-nasa); box-shadow: 0 4px 16px rgba(11, 61, 145, 0.6); }
+.app .segmented button { color: var(--lp-ice); }
+.app .segmented button[aria-checked='true'] { color: #fff; font-weight: 700; }
+
+/* Escenario */
+.app .video-wrap { border-radius: 16px; background: #000; }
+.app .hero-play { background: #fff; box-shadow: 0 6px 30px rgba(61, 134, 255, 0.55); }
+.app .t-primary { background: #fff; color: #000; box-shadow: 0 2px 12px rgba(61, 134, 255, 0.45); }
+.app .t-primary:hover { background: #fff; filter: none; }
+.app .glass { background: rgba(5, 10, 23, 0.72); border-color: var(--lp-line); }
+.app .lat-dot { background: #fff; box-shadow: 0 0 0 4px rgba(61, 134, 255, .35), 0 0 18px rgba(61, 134, 255, .8); }
+
+/* Panel lateral: tarjetas oscuras con borde azul, títulos en peso fuerte (sin mayúsculas) */
+.app .group-title {
+  margin: 0 0 0.55rem; text-transform: none; letter-spacing: -0.01em;
+  font-size: 1.15rem; font-weight: 800; color: #fff;
+}
+.app .group-body { border: 1px solid var(--lp-line); border-radius: 14px; }
+.app .row-label { font-weight: 600; }
+.app .row-action { color: var(--lp-signal); font-weight: 600; }
+.app .switch { background: rgba(201, 220, 255, 0.18); }
+.app .switch[aria-checked='true'] { background: var(--lp-signal); }
+.app .balance-dot { background: var(--lp-signal); }
+.app .gauge-fill { background: linear-gradient(90deg, var(--lp-nasa), var(--lp-signal)); }
+.app .status-ok { color: var(--lp-signal); }
+.app kbd { background: rgba(61, 134, 255, 0.18); color: #fff; }
+.app .foot { border-top-color: var(--lp-line); color: rgba(201, 220, 255, 0.7); }
+.app .foot a, .app a { color: var(--lp-signal); }
+.app .app-home { color: inherit; }
+
+/* Explicaciones plegadas: una flecha que gira al abrir */
+.more { margin: 0.6rem 0 0; }
+.more summary {
+  display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; list-style: none;
+  min-height: 2.75rem; padding: 0 0.25rem; border-radius: 8px;
+  color: var(--lp-signal, var(--focus)); font-size: 0.9375rem; font-weight: 700;
+}
+.more summary::-webkit-details-marker { display: none; }
+.more summary:hover { color: #fff; }
+.more-chevron { display: grid; place-items: center; width: 1rem; height: 1rem; transition: transform 200ms ease; }
+.more-chevron svg { width: 1rem; height: 1rem; }
+.more[open] .more-chevron { transform: rotate(90deg); }
+.more-body {
+  margin: 0.15rem 0 0.25rem; padding-left: 1.65rem; max-width: 70ch;
+  color: var(--label-2); font-size: 0.9375rem; line-height: 1.55;
+}
+.caption { margin: 0.5rem 0 0; }
+.caption .more { margin: 0; }
+@media (max-width: 640px) { .app .hero-play { display: none; } }
+
+/* ═════════ Historia interactiva: escenario a pantalla completa + tablero debajo ═════════ */
+.app { max-width: none; padding: 0; }
+
+/* Escenario: el video ocupa toda la pantalla (sin recortarlo: el mapa entero importa para el paneo) */
+.stage-full {
+  position: relative; min-height: 100svh; background: #000; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.stage-full .viewer { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.app .video-wrap {
+  width: min(100vw, calc((100svh - 3.25rem) * var(--ar, 2)));
+  border-radius: 0; box-shadow: none;
+}
+
+/* Título y selector flotando arriba, sobre un degradado */
+.stage-head {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 6;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 1.5rem;
+  padding: clamp(1rem, 2.5vh, 1.75rem) clamp(1rem, 3vw, 2.5rem) 3.5rem;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.94) 0%, rgba(0, 0, 0, 0.9) 58%, transparent 100%);
+  pointer-events: none;
+}
+.stage-head > * { pointer-events: auto; }
+.app .stage-head .display { font-size: clamp(1.8rem, 3.4vw, 3rem); line-height: 1; }
+.app .stage-head .lede { margin-top: 0.4rem; font-size: clamp(0.95rem, 1.2vw, 1.1rem); }
+.app .stage-head .track-picker { margin-top: 0.2rem; }
+
+/* La historia: qué está pasando ahora, en grande */
+.story {
+  position: absolute; z-index: 3; left: clamp(1rem, 3vw, 2.5rem); bottom: 5.75rem;
+  max-width: min(46rem, 80%); padding: 1rem 1.25rem 1rem 0; pointer-events: none;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.8);
+}
+.story::before {
+  content: ''; position: absolute; inset: -2.5rem -4rem -1.5rem -3rem; z-index: -1;
+  background: radial-gradient(ellipse at 30% 70%, rgba(0, 0, 0, 0.7), transparent 70%);
+}
+.story-kicker {
+  margin: 0; color: #fff; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05;
+  font-size: clamp(1.6rem, 3vw, 2.6rem); font-variant-numeric: tabular-nums;
+}
+.story-line { margin: 0.4rem 0 0; color: var(--lp-ice); font-size: clamp(1rem, 1.3vw, 1.2rem); line-height: 1.45; font-weight: 600; }
+.app .pan-tag { top: auto; bottom: 5.4rem; }
+@media (max-width: 760px) { .app .pan-tag { display: none; } }
+
+/* Señal para bajar al tablero */
+.scroll-cue {
+  height: 3.25rem; display: inline-flex; align-items: center; gap: 0.4rem;
+  color: var(--lp-ice) !important; text-decoration: none; font-weight: 700; font-size: 0.9375rem;
+}
+.scroll-cue svg { width: 1rem; height: 1rem; }
+.scroll-cue:hover { color: #fff !important; }
+@media (prefers-reduced-motion: no-preference) {
+  .scroll-cue svg { animation: cue-bob 2.4s ease-in-out infinite; }
+  @keyframes cue-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+}
+
+/* Tablero: opciones y métricas en columnas */
+.dash {
+  max-width: 1440px; margin: 0 auto; padding: clamp(2.5rem, 6vh, 4rem) clamp(1rem, 3vw, 2.5rem) 1rem;
+  display: grid; gap: 1.75rem 2rem; align-items: start;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "about about about" "now layers play" "now diag a11y";
+}
+.dash-about { grid-area: about; display: flex; align-items: baseline; gap: 1.5rem; flex-wrap: wrap; }
+.dash-about .more { margin: 0; flex: 1 1 20rem; }
+.dash-title { margin: 0; font-size: clamp(1.6rem, 2.6vw, 2.2rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+.dash-now { grid-area: now; }
+.dash-layers { grid-area: layers; }
+.dash-play { grid-area: play; }
+.dash-a11y { grid-area: a11y; }
+.dash-diag { grid-area: diag; }
+@media (max-width: 1080px) {
+  .dash { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "about about" "now layers" "now play" "a11y diag"; }
+}
+@media (max-width: 700px) {
+  .dash { grid-template-columns: minmax(0, 1fr); grid-template-areas: "about" "now" "layers" "play" "a11y" "diag"; }
+}
+.app .foot { max-width: 1440px; margin: 2rem auto 0; padding: 1.25rem clamp(1rem, 3vw, 2.5rem) 2rem; }
+
+/* Celular: título arriba (sin superponer), video al ancho, la historia en corto */
+@media (max-width: 760px) {
+  .stage-full { min-height: auto; justify-content: flex-start; }
+  .stage-head { position: static; flex-direction: column; gap: 0.9rem; padding: 1.25rem 1rem 1rem; background: none; }
+  .app .video-wrap { width: 100vw; }
+  .story { top: 0.6rem; bottom: auto; left: 0.75rem; padding: 0; }
+  .story::before { inset: -1rem -2rem -1rem -1rem; }
+  .story-kicker { font-size: 1.05rem; }
+  .story-line { display: none; }
+}
