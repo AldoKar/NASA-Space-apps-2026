@@ -26,7 +26,6 @@ export type Command =
   | { type: 'describe' }
   | { type: 'help' }
   | { type: 'stopListening' }
-  | { type: 'noiseMode'; on: boolean }
 
 /** Minúsculas, sin acentos ni puntuación, espacios simples. */
 export function normalize(text: string): string {
@@ -125,9 +124,6 @@ export function parseCommand(raw: string): Command | null {
 
   // Control de la propia voz y ayuda
   if (has(t, /\b(stop listening|turn off the microphone|turn off microphone|mute the microphone|disable voice|turn off voice|stop voice)\b/)) return { type: 'stopListening' }
-  // Modo ruido: solo obedece lo que se dice después de la palabra "Symphony"
-  if (has(t, /\b(normal mode|quiet mode|disable noise mode|turn off noise mode|exit noise mode|leave noise mode|no noise mode)\b/)) return { type: 'noiseMode', on: false }
-  if (has(t, /\b(noise mode|noisy mode|its noisy|too noisy|very noisy|lots of noise|enable noise mode|turn on noise mode)\b/)) return { type: 'noiseMode', on: true }
   if (has(t, /\b(what can i say|what do i say|help|help me|commands|what can i do|instructions|options)\b/)) return { type: 'help' }
 
   // Capas: verbo de apagar/prender + nombre de capa (antes que navegar: "turn off the lightning")
@@ -179,24 +175,6 @@ export function parseCommand(raw: string): Command | null {
   return null
 }
 
-/** ¿Es la palabra clave "Symphony"? (también como la escribe el reconocedor: "symphonie", "simphony"…) */
-export function isWakeWord(word: string): boolean {
-  const w = normalize(word)
-  return /^(symph|simph|symf|simf|sinfon|sinphon)/.test(w) || distance(w, 'symphony', 2) <= 2
-}
-
-/**
- * Lo que va después de la última vez que se dijo "Sinfonía", o null si no se dijo.
- * "blah blah Symphony pause" → "pause".
- */
-export function afterWakeWord(text: string): string | null {
-  const words = normalize(text).split(' ')
-  for (let i = words.length - 1; i >= 0; i--) {
-    if (isWakeWord(words[i])) return words.slice(i + 1).join(' ')
-  }
-  return null
-}
-
 /** Las últimas palabras de una frase: el comando suele estar al final de lo que se oyó. */
 export function lastWords(text: string, n = 8): string {
   const words = normalize(text).split(' ')
@@ -208,11 +186,9 @@ export const HELP_APP =
   'You can say: play, pause, resume, restart, skip 10 seconds or go back 10 seconds. ' +
   'Take me to the fire, take me to the storms, or take me home. ' +
   'Volume up or volume down, slower or normal speed. Turn a layer on or off, for example: turn off the thunder. ' +
-  'Describe this moment. And stop listening, to turn off the microphone. ' +
-  'If it is very noisy, say: noise mode, and then say Symphony before each command.'
+  'Describe this moment. And stop listening, to turn off the microphone.'
 
 export const HELP_LANDING =
   'You can say: start the tour, next or previous to move around the page. ' +
   'Take me to the storms or take me to the fire to open a simulation, or play to start with the storms. ' +
-  'And stop listening, to turn off the microphone. ' +
-  'If it is very noisy, say: noise mode, and then say Symphony before each command.'
+  'And stop listening, to turn off the microphone.'

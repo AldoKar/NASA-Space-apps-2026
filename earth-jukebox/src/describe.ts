@@ -44,6 +44,7 @@ export function describeFire(opts: {
   front: number
   frontX: number
   burned: number
+  areaKm2: number
 }): string {
   if (opts.phase === 'resumen') return `Final recap of the fire, October 22, 2021. There is no active fire anymore.`
   const level = (v: number) => (v < 0.05 ? 'almost none' : v < 0.25 ? 'low' : v < 0.5 ? 'medium' : 'high')
@@ -51,6 +52,6 @@ export function describeFire(opts: {
   return (
     `${opts.date}, day ${Math.round(opts.day)} of 100. Phase: ${opts.phase}. ` +
     `Active fire: ${level(opts.active)}. Fire front: ${level(opts.front)}${opts.front >= 0.05 ? side : ''}. ` +
-    `Burned area: ${Math.round(opts.burned * 100)} percent of what it will be at the end.`
+    `Burned area: about ${(Math.round(opts.areaKm2 / 10) * 10).toLocaleString('en-US')} square kilometers, ${Math.round(opts.burned * 100)} percent of the final total.`
   )
 }

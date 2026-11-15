@@ -5,6 +5,7 @@
  *   - puntos/triángulos ROJOS  = detecciones de fuego activo (VIIRS)        → "fuego activo"
  *   - líneas AMARILLO BRILLANTE = posición más reciente del frente del fuego → "frente"
  *   - zona GRIS                = área quemada acumulada                     → "área quemada"
+ *     (el número sale de la gráfica del video, ver fireArea.ts, no de contar gris en el mapa)
  * A la derecha hay una gráfica (fija en pantalla) y arriba a la izquierda la fecha.
  *
  * Calibrado midiendo el video completo (3068 cuadros) a esta misma resolución:
@@ -15,6 +16,8 @@
  *   - desde el segundo 96 el video muestra un resumen con todas las líneas de fuego en colores;
  *     se detecta porque la gráfica se rellena de rojo, y no se cuenta como fuego.
  */
+
+import { fireAreaAt } from './fireArea'
 
 export const FIRE_W = 960
 export const FIRE_H = 540
@@ -28,7 +31,6 @@ const LABEL_Y = 50 / 540
 const RED_FLOOR = 40 // píxeles rojos de la barra de escala
 const RED_FULL = 5000 // fuego activo en los momentos más intensos
 const FRONT_FULL = 300 // píxeles del frente en los momentos de mayor avance
-const BURNED_FULL = 134_000 // área gris al final (cuando ya está todo el incendio en pantalla)
 const RECAP_PIXELS = 300 // relleno rojo en la gráfica → resumen final
 
 export interface FireFeatures {
@@ -42,9 +44,11 @@ export interface FireFeatures {
   /** Posición horizontal del fuego activo, 0..1; -1 si no hay. */
   fireX: number
   fireY: number
-  /** Área quemada visible (máximo acumulado), 0..1. */
+  /** Área quemada según la gráfica, fracción del área final 0..1. */
   burned: number
-  /** Crecimiento del área quemada por segundo de video (0..1 aprox.). */
+  /** Área quemada según la gráfica, km². */
+  areaKm2: number
+  /** Qué tan rápido crece el área ahora, 0..1 (1 = el día de mayor avance). */
   growth: number
   /** true durante el resumen final del video. */
   recap: boolean
@@ -64,16 +68,10 @@ export function isBurnedGray(r: number, g: number, b: number): boolean {
 }
 
 export class FireDetector {
-  private burnedMax = 0
-  private lastBurned = -1
   private lastTime = -1
-  private growthAvg = 0
 
   reset() {
-    this.burnedMax = 0
-    this.lastBurned = -1
     this.lastTime = -1
-    this.growthAvg = 0
   }
 
   analyze(rgba: Uint8ClampedArray | Uint8Array, videoTime: number, w = FIRE_W, h = FIRE_H): FireFeatures {
@@ -82,7 +80,6 @@ export class FireDetector {
     const ly = Math.floor(h * LABEL_Y)
     let red = 0, rxs = 0, rys = 0
     let yel = 0, yxs = 0, yys = 0
-    let burned = 0
     for (let y = 0; y < h; y++) {
       const row = y * w * 4
       for (let x = 0; x < gx; x++) {
@@ -93,8 +90,6 @@ export class FireDetector {
           red++; rxs += x; rys += y
         } else if (isFrontYellow(r, g, b)) {
           yel++; yxs += x; yys += y
-        } else if (isBurnedGray(r, g, b)) {
-          burned++
         }
       }
     }
@@ -114,18 +109,8 @@ export class FireDetector {
 
     const dt = this.lastTime >= 0 ? videoTime - this.lastTime : 0
     const jumped = this.lastTime < 0 || dt <= 0 || dt > 0.5
-    if (jumped) this.burnedMax = 0
-    this.burnedMax = Math.max(this.burnedMax, burned)
-    let growth = 0
-    if (!jumped && this.lastBurned >= 0) {
-      const g = Math.max(0, this.burnedMax - this.lastBurned) / BURNED_FULL / dt
-      this.growthAvg = this.growthAvg * 0.95 + g * 0.05
-      growth = Math.min(1, this.growthAvg * 8) // ~1 en el avance más rápido medido
-    } else {
-      this.growthAvg = 0
-    }
-    this.lastBurned = this.burnedMax
     this.lastTime = videoTime
+    const area = fireAreaAt(videoTime)
 
     const recap = recapPx / scale > RECAP_PIXELS
     const redN = red / scale
@@ -136,8 +121,9 @@ export class FireDetector {
       frontY: yel > 3 ? yys / yel / h : -1,
       fireX: redN > RED_FLOOR ? rxs / red / gx : -1,
       fireY: redN > RED_FLOOR ? rys / red / h : -1,
-      burned: Math.min(1, this.burnedMax / scale / BURNED_FULL),
-      growth: recap ? 0 : growth,
+      burned: area.fraction,
+      areaKm2: area.km2,
+      growth: recap ? 0 : area.growth,
       recap,
       isReset: jumped,
     }

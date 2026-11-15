@@ -22,7 +22,7 @@ const EMPTY: FrameFeatures = {
   activity: 0, meanLat: 0, northShare: 0.5, newRate: 0, strikes: [], peakEnergy: 0, isReset: true,
 }
 const EMPTY_FIRE: FireFeatures = {
-  active: 0, front: 0, frontX: -1, frontY: -1, fireX: -1, fireY: -1, burned: 0, growth: 0, recap: false, isReset: true,
+  active: 0, front: 0, frontX: -1, frontY: -1, fireX: -1, fireY: -1, burned: 0, areaKm2: 0, growth: 0, recap: false, isReset: true,
 }
 const PHASE_STORY: Record<string, string> = {
   calma: 'A few hot spots. This is how it all begins.',
@@ -38,6 +38,11 @@ const PHASE_TEXT: Record<string, string> = {
   calma: 'Calm', creciendo: 'Growing', intenso: 'Intense', caos: 'Chaos', bajando: 'Easing', resumen: 'Final recap',
 }
 
+
+/** "2,540 km²" (redondeado a decenas, como se lee en la gráfica). */
+function formatKm2(km2: number): string {
+  return `${(Math.round(km2 / 10) * 10).toLocaleString('en-US')} km²`
+}
 function useMedia(query: string) {
   const [match, setMatch] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches)
   useEffect(() => {
@@ -216,7 +221,7 @@ export default function App() {
     if (isFire) {
       const { f, phase, time } = latestFire.current
       const day = fireDay(time)
-      return describeFire({ date: fireDateLabel(day), day, phase: PHASE_TEXT[phase] ?? phase, active: f.active, front: f.front, frontX: f.frontX, burned: f.burned })
+      return describeFire({ date: fireDateLabel(day), day, phase: PHASE_TEXT[phase] ?? phase, active: f.active, front: f.front, frontX: f.frontX, burned: f.burned, areaKm2: f.areaKm2 })
     }
     return describeMoment(latest.current.f, progressPct, latest.current.balance)
   }, [progressPct, isFire])
@@ -488,7 +493,7 @@ export default function App() {
               >
                 <Switch label="Active fire" description="Crackling; at its most intense, a low heartbeat" shortcut="1" checked={fireLayers.fire} onChange={(v) => setFireLayer('fire', v)} />
                 <Switch label="Fire front" description="Warm voice: the bigger the front, the higher and busier it gets" shortcut="2" checked={fireLayers.front} onChange={(v) => setFireLayer('front', v)} />
-                <Switch label="Burned area" description="Low drone that grows over 100 days" shortcut="3" checked={fireLayers.burned} onChange={(v) => setFireLayer('burned', v)} />
+                <Switch label="Burned area" description="Deep bass that grows with the burned km²" shortcut="3" checked={fireLayers.burned} onChange={(v) => setFireLayer('burned', v)} />
               </Section>
 
               <Section className="dash-now" title="Right now">
@@ -528,9 +533,9 @@ export default function App() {
                 <div className="row stack">
                   <div className="row-head">
                     <span className="row-label">Burned area</span>
-                    <span className="row-value tabular">{Math.round(ff.burned * 100)} %</span>
+                    <span className="row-value tabular">{formatKm2(ff.areaKm2)}</span>
                   </div>
-                  <Gauge value={fireBurnedSpring} label="Burned area relative to the total" valueText={`${Math.round(ff.burned * 100)} percent of the total`} />
+                  <Gauge value={fireBurnedSpring} label="Burned area relative to the final total" valueText={`${Math.round(ff.areaKm2).toLocaleString('en-US')} square kilometers, ${Math.round(ff.burned * 100)} percent of the final total`} />
                 </div>
                 <div className="row">
                   <span className="row-label">Chord</span>
@@ -560,7 +565,7 @@ export default function App() {
             />
           </Section>
 
-          <Section className="dash-now" title="En este momento">
+          <Section className="dash-now" title="Right now">
             <div className="row stack">
               <div className="row-head">
                 <span className="row-label">Activity</span>

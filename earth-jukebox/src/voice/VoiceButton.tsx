@@ -37,7 +37,7 @@ const HINT: Record<string, string> = {
 
 /** Botón para activar los comandos de voz, con lo último que se oyó y la respuesta. */
 export function VoiceButton({ variant = 'inline' }: { variant?: 'inline' | 'floating' }) {
-  const { status, heard, reply, toggle, noiseMode, setNoiseMode, activity, engine, chosen, setChosen, micLabel } = useVoice()
+  const { status, heard, reply, toggle, activity, engine, chosen, setChosen, micLabel } = useVoice()
   const on = status === 'listening' || status === 'starting' || status === 'loading'
   const label =
     status === 'listening' && activity === 'speech' ? 'Hearing you…'
@@ -62,17 +62,6 @@ export function VoiceButton({ variant = 'inline' }: { variant?: 'inline' | 'floa
         <button type="button" role="radio" aria-checked={chosen === 'chrome'} onClick={() => setChosen('chrome')}
           title="Chrome speech recognition (Google)">Chrome</button>
       </div>
-      {status === 'listening' && (
-        <button
-          type="button"
-          className="voice-noise"
-          aria-pressed={noiseMode}
-          onClick={() => setNoiseMode(!noiseMode)}
-          title="For noisy places: only obeys what you say after “Symphony”"
-        >
-          Noise mode{noiseMode ? ': on' : ''}
-        </button>
-      )}
       <button
         type="button"
         className="voice-btn"
@@ -96,7 +85,7 @@ export function VoiceButton({ variant = 'inline' }: { variant?: 'inline' | 'floa
       )}
       {showBubble && (
         <p className="voice-bubble" aria-hidden="true">
-          {hint ?? (heard ? <><span className="voice-heard">“{heard}”</span>{reply && <span className="voice-reply">{reply}</span>}</> : <span className="voice-reply">{noiseMode ? 'Say “Symphony” and your command, e.g. “Symphony, pause”' : 'Say: “What can I say?”'}</span>)}
+          {hint ?? (heard ? <><span className="voice-heard">“{heard}”</span>{reply && <span className="voice-reply">{reply}</span>}</> : <span className="voice-reply">Say: “What can I say?”</span>)}
         </p>
       )}
     </div>

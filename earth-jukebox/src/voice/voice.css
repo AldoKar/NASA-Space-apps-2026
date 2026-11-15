@@ -31,13 +31,6 @@
 .voice-reply { color: #c9dcff; }
 @media (prefers-reduced-transparency: reduce) { .voice-btn, .voice-bubble { background: #050a17; backdrop-filter: none; } }
 .voice-row { display: inline-flex; align-items: center; gap: 0.5rem; }
-.voice-noise {
-  min-height: 2.75rem; padding: 0.4rem 0.9rem; border-radius: 999px; cursor: pointer;
-  border: 1px solid rgba(61, 134, 255, 0.35); background: rgba(5, 10, 23, 0.85); color: #c9dcff;
-  font: inherit; font-weight: 600; font-size: 0.8125rem;
-}
-.voice-noise:hover { color: #fff; }
-.voice-noise[aria-pressed='true'] { background: #fff; color: #000; border-color: #fff; }
 .voice-dot.is-active { background: #3d86ff; }
 .voice-label { font-variant-numeric: tabular-nums; }
 /* Selector de reconocedor: Whisper large | Chrome */

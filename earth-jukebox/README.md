@@ -230,12 +230,10 @@ La app está en inglés, y los comandos de voz también:
 - Navegar: *take me to the fire*, *take me to the storms*, *take me home*; en la landing, *start the tour*, *next*, *previous* (lee cada sección en voz alta).
 - Sonido: *volume up / down*, *turn off the thunder*, *turn on the fire*, etc.
 - Accesibilidad: *describe this moment*, *what can I say?*, *stop listening*.
-- Con ruido: *noise mode* → solo obedece lo que va después de **"Symphony"** (*Symphony, pause*); *normal mode* lo quita.
 
 Con ruido: la app revisa las últimas palabras mientras hablas (no espera al silencio, que con gente
 alrededor nunca llega), ejecuta en cuanto el comando es claro y reinicia la escucha para no acumular.
-Di **noise mode** (o usa el botón) para que solo obedezca lo que va después de **"Symphony"**
-(*Symphony, pause*); **normal mode** lo quita. Ayuda mucho un micrófono de diadema cerca de la boca.
+Ayuda mucho un micrófono de diadema cerca de la boca.
 
 La landing y la app cambian de página sin recargar, para que el micrófono siga escuchando y el navegador
 permita arrancar el sonido con un comando de voz. Código en `src/voice/` (el intérprete de frases tiene pruebas).

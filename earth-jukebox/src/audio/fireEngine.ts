@@ -16,8 +16,12 @@ import type { EngineStats } from './stormEngine'
  *                        Suena del lado de la pantalla donde está el fuego.
  *  FRENTE (amarillo)     voz cálida que camina por las notas del acorde: más frente = más agudo
  *                        y más notas por tiempo. Suena del lado donde avanza el frente.
- *  ÁREA QUEMADA (gris)   colchón grave (nota base del acorde) que se abre y sube de volumen a
- *                        medida que crece el área; mientras crece, late suavemente.
+ *  ÁREA QUEMADA (gris)   PRESENCIA: un sub-bajo continuo (37–58 Hz, la nota base del acorde)
+ *                        cuyo volumen sigue la curva de km² de la gráfica del video. Tiene
+ *                        armónicos 2.º y 3.º para que se perciba también en bocinas pequeñas
+ *                        que no reproducen esas frecuencias. "Respira" más hondo y más rápido
+ *                        cuando el área crece rápido (p. ej. 4–6 de agosto). Encima, un colchón
+ *                        grave que se abre conforme crece el área.
  *  RESUMEN FINAL         al aparecer el resumen del video, todo se apaga y suena un cierre lento.
  *
  * Armonía según la intensidad (fireMusic.ts). Mismas protecciones que los rayos (budget.ts).
@@ -49,6 +53,23 @@ const MAX_SLOTS_PER_UPDATE = 8
 /** Lado de la pantalla → la x del mapa ocupa el 81 % izquierdo del video (el resto es la gráfica). */
 const MAP_FRACTION = 780 / 960
 
+/** Respiración del sub-bajo: una vez cada ~7 s en calma, ~1.5 por segundo en el avance más rápido. */
+const SUB_BREATH_REST = 0.14
+const SUB_BREATH_FAST = 1.5
+
+/** Nota base del acorde en el registro de sub-bajo: Re1 (36.7 Hz) … Do#2 (69 Hz). */
+export function subFreq(chord: number): number {
+  const b = fireBass(Math.max(0, chord)) // Do2..Si2
+  const midi = 26 + ((b - 26) % 12 + 12) % 12 // Re1..Do#2
+  return 440 * Math.pow(2, (midi - 69) / 12)
+}
+
+/** Volumen (lineal) del sub-bajo según la fracción del área final. 0 sin área. */
+export function subGain(area: number): number {
+  if (area <= 0.002) return 0
+  return Math.min(1, Math.pow(area, 0.55))
+}
+
 export class FireEngine {
   private started = false
   private master!: Tone.Volume
@@ -64,6 +85,11 @@ export class FireEngine {
   private drone!: Tone.PolySynth
   private droneFilter!: Tone.Filter
   private droneTremolo!: Tone.Tremolo
+  private sub!: Tone.Oscillator
+  private subLevel!: Tone.Gain
+  private subBreath!: Tone.Tremolo
+  private subBus!: Tone.Volume
+  private subOn = false
   private layers: FireLayers = { fire: true, front: true, burned: true }
 
   private budget = new NoteBudget()
@@ -170,8 +196,17 @@ export class FireEngine {
     this.drone = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'fattriangle', count: 3, spread: 16 },
       envelope: { attack: 3, decay: 0.5, sustain: 0.9, release: 4 },
-      volume: -6,
+      volume: -9,
     }).connect(this.droneFilter)
+
+    // --- Área quemada: presencia (sub-bajo) ---
+    // Va directo al master, sin reverb: un grave con eco se vuelve lodo.
+    this.subBus = new Tone.Volume(-11).connect(this.master)
+    this.subBreath = new Tone.Tremolo({ frequency: SUB_BREATH_REST, depth: 0.15, spread: 0, type: 'sine' })
+      .connect(this.subBus).start()
+    const subFilter = new Tone.Filter({ type: 'lowpass', frequency: 190, Q: 0.5, rolloff: -24 }).connect(this.subBreath)
+    this.subLevel = new Tone.Gain(0).connect(subFilter)
+    this.sub = new Tone.Oscillator({ frequency: subFreq(0), type: 'custom', partials: [1, 0.4, 0.15] }).connect(this.subLevel)
 
     this.started = true
     this.applyLayers()
@@ -185,6 +220,7 @@ export class FireEngine {
     this.fireBus.mute = !this.layers.fire
     this.frontBus.mute = !this.layers.front
     this.burnedBus.mute = !this.layers.burned
+    this.subBus.mute = !this.layers.burned
   }
   setVolume(db: number) {
     if (this.started) this.master.volume.rampTo(db, 0.1)
@@ -201,6 +237,7 @@ export class FireEngine {
 
   silence() {
     if (!this.started) return
+    this.subLevel.gain.rampTo(0, 0.4)
     this.drone.releaseAll()
     this.droneChord = -1
     this.nextSlot = -1
@@ -208,7 +245,9 @@ export class FireEngine {
   }
 
   dispose() {
-    if (this.started) this.drone.releaseAll()
+    if (!this.started) return
+    this.drone.releaseAll()
+    this.subLevel.gain.rampTo(0, 0.2)
   }
 
   private ensureRunning() {
@@ -259,6 +298,8 @@ export class FireEngine {
         this.drone.releaseAll(now)
         this.droneChord = -1
         this.playCoda(now + 0.1)
+        // La presencia del área final se queda unos segundos y se desvanece.
+        this.updateSub(1, 0, 0, 8)
       }
       return { marks: [], chord: 'D minor', phase: 'resumen', intensity: 0 }
     }
@@ -273,8 +314,9 @@ export class FireEngine {
       this.droneChord = this.chord
     }
     this.droneFilter.frequency.rampTo(160 + f.burned * 900, 0.6)
-    this.burnedBus.volume.rampTo(-12 + f.burned * 12, 0.6)
-    this.droneTremolo.depth.rampTo(Math.min(0.6, f.growth * 0.8), 0.6)
+    this.burnedBus.volume.rampTo(-14 + f.burned * 12, 0.6)
+    this.droneTremolo.depth.rampTo(Math.min(0.5, f.growth * 0.6), 0.6)
+    this.updateSub(f.burned, f.growth, this.chord)
 
     // Pulso
     // Después de una trabada, los tiempos que ya pasaron se saltan (no se tocan todos juntos: "palomitas").
@@ -366,6 +408,28 @@ export class FireEngine {
     const start = safeStart(time, this.drumLast, Tone.getContext().currentTime)
     this.drum.triggerAttackRelease(note, 0.6, start, 0.8)
     this.drumLast = start
+  }
+
+  /**
+   * Presencia del área quemada: volumen según la fracción del área final (con curva para que
+   * el primer tramo ya se sienta), respiración según qué tan rápido crece.
+   * fadeTo (segundos) apaga la presencia lentamente en el cierre.
+   */
+  private updateSub(area: number, growth: number, chord: number, fadeTo = 0) {
+    if (!this.subOn) {
+      this.sub.start()
+      this.subOn = true
+    }
+    if (fadeTo > 0) {
+      this.subLevel.gain.rampTo(0, fadeTo)
+      this.subBreath.depth.rampTo(0.1, 1)
+      this.subBreath.frequency.rampTo(SUB_BREATH_REST, 1)
+      return
+    }
+    this.sub.frequency.rampTo(subFreq(chord), 1.2)
+    this.subLevel.gain.rampTo(subGain(area), 0.8)
+    this.subBreath.depth.rampTo(0.15 + growth * 0.55, 0.8)
+    this.subBreath.frequency.rampTo(SUB_BREATH_REST + growth * (SUB_BREATH_FAST - SUB_BREATH_REST), 0.8)
   }
 
   /** Cierre: arpegio lento de Re menor en campanas, de izquierda a derecha, y el colchón final. */

@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { afterWakeWord, lastWords, parseCommand, type Command } from './commands'
+import { lastWords, parseCommand, type Command } from './commands'
 import { isEcho, speak, stopSpeaking } from './speak'
 import { defaultMicLabel, getRecognizer, saveRecognizer, WhisperListener, type Recognizer } from './whisperListener'
 
@@ -29,9 +29,6 @@ interface VoiceCtx {
   micLabel: string
   /** Con Whisper: 'speech' mientras hablas, 'processing' mientras transcribe. */
   activity: 'idle' | 'speech' | 'processing'
-  /** Modo ruido: solo obedece lo que va después de "Sinfonía". */
-  noiseMode: boolean
-  setNoiseMode: (on: boolean) => void
   heard: string
   reply: string
   toggle: () => void
@@ -65,7 +62,6 @@ function getRecognition(): RecognitionCtor | null {
 }
 
 const STORE_KEY = 'earth-symphony-voz'
-const NOISE_KEY = 'earth-symphony-modo-ruido'
 /** Un comando que se oye mientras se habla se ejecuta si no cambia en este tiempo (o al cerrar la frase). */
 const STABLE_MS = 650
 /** Cada cuánto se limpia lo acumulado si no se oyó ningún comando (con ruido, la frase nunca se cierra). */
@@ -106,16 +102,6 @@ export function VoiceProvider({ children, onFallback }: { children: ReactNode; o
     speak(text)
   }, [])
 
-  const [noiseMode, setNoiseState] = useState(() => {
-    try { return localStorage.getItem(NOISE_KEY) === '1' } catch { return false }
-  })
-  const noise = useRef(noiseMode)
-  const setNoiseMode = useCallback((on: boolean) => {
-    noise.current = on
-    setNoiseState(on)
-    try { localStorage.setItem(NOISE_KEY, on ? '1' : '0') } catch { /* sin almacenamiento */ }
-  }, [])
-
   // Sesión de escucha actual: al ejecutar un comando se abre otra, y lo que llegue de la anterior se descarta.
   const session = useRef(0)
   const candidate = useRef<{ key: string; cmd: Command; text: string; timer: number } | null>(null)
@@ -131,42 +117,21 @@ export function VoiceProvider({ children, onFallback }: { children: ReactNode; o
       say('I stopped listening. To turn me back on, press the voice button or the V key.')
       return
     }
-    if (cmd.type === 'noiseMode') {
-      setNoiseMode(cmd.on)
-      say(cmd.on
-        ? 'Noise mode on. Now say Symphony before each command. For example: Symphony, pause.'
-        : 'Normal mode. You no longer need to say Symphony.')
-      return
-    }
     const answer = (await handler.current?.(cmd)) ?? (await fallback.current(cmd, { setPending: (c) => { pending.current = c } }))
     if (answer) say(answer)
-  }, [say, setNoiseMode])
+  }, [say])
 
   /**
    * Busca un comando en lo que se oyó. Solo mira las últimas palabras (con ruido, el navegador junta
-   * todo lo que oye en una sola frase) y, en modo ruido, solo lo que va después de "Sinfonía".
+   * todo lo que oye en una sola frase).
    */
-  const find = useCallback((alternatives: string[]): { cmd: Command; text: string } | { wakeOnly: true } | null => {
-    let wakeOnly = false
+  const find = useCallback((alternatives: string[]): { cmd: Command; text: string } | null => {
     for (const alt of alternatives) {
-      let part: string | null = alt
-      if (noise.current) {
-        part = afterWakeWord(alt)
-        if (part === null) continue
-        if (!part) { wakeOnly = true; continue }
-      }
-      const text = lastWords(part, 8)
+      const text = lastWords(alt, 8)
       const cmd = parseCommand(text)
-      // "modo ruido" / "modo normal" se aceptan siempre, aunque no se diga la palabra clave.
       if (cmd) return { cmd, text }
     }
-    if (noise.current) {
-      for (const alt of alternatives) {
-        const cmd = parseCommand(lastWords(alt, 4))
-        if (cmd?.type === 'noiseMode') return { cmd, text: lastWords(alt, 4) }
-      }
-    }
-    return wakeOnly ? { wakeOnly: true } : null
+    return null
   }, [])
 
   /** Ejecuta el comando y reinicia la escucha para borrar lo acumulado. */
@@ -181,7 +146,7 @@ export function VoiceProvider({ children, onFallback }: { children: ReactNode; o
   const miss = useCallback((text: string) => {
     const words = text.trim().split(/\s+/).length
     // Con ruido, la gente platica: solo se contesta "no entendí" a frases cortas, una vez cada 15 s.
-    if (noise.current || words < 2 || words > 6 || performance.now() - lastMiss.current < 15000) return
+    if (words < 2 || words > 6 || performance.now() - lastMiss.current < 15000) return
     lastMiss.current = performance.now()
     setHeard(text)
     say('I did not understand. Say: what can I say.')
@@ -192,10 +157,9 @@ export function VoiceProvider({ children, onFallback }: { children: ReactNode; o
     if (!alternatives.length || isEcho(alternatives[0])) return
     const found = find(alternatives)
     if (!found) { miss(alternatives[0]); return }
-    if ('wakeOnly' in found) { say('Yes?'); return }
     stopSpeaking()
     fire(found.cmd, found.text)
-  }, [find, miss, say, fire])
+  }, [find, miss, fire])
 
   const setEngine = useCallback((e: VoiceEngine) => { engineRef.current = e; setEngineState(e) }, [])
 
@@ -219,7 +183,7 @@ export function VoiceProvider({ children, onFallback }: { children: ReactNode; o
       // Si es la propia voz de la app (con bocinas), se ignora.
       if (!alternatives.length || isEcho(alternatives[0])) return
       const found = find(alternatives)
-      if (!found || 'wakeOnly' in found) return
+      if (!found) return
       stopSpeaking() // la persona habla encima: la app se calla y obedece
       // Mientras se habla: se ejecuta cuando el comando deja de cambiar ("adelanta" → "adelanta 20 segundos").
       const key = JSON.stringify(found.cmd)
@@ -255,9 +219,7 @@ export function VoiceProvider({ children, onFallback }: { children: ReactNode; o
   const greet = useCallback(() => {
     const onPage = window.location.pathname.startsWith('/symphony') || window.location.pathname.startsWith('/jukebox')
     const first = onPage ? 'play' : 'start the tour'
-    say(noise.current
-      ? `I'm listening in noise mode. Say Symphony before each command. For example: Symphony, ${first}.`
-      : `I'm listening. Say ${first}, or what can I say.`)
+    say(`I'm listening. Say ${first}, or what can I say.`)
   }, [say])
 
   /** Whisper en el navegador: descarga el modelo la primera vez y abre el micrófono. */
@@ -394,8 +356,8 @@ export function VoiceProvider({ children, onFallback }: { children: ReactNode; o
   const setPending = useCallback((c: Command | null) => { pending.current = c }, [])
   const takePending = useCallback(() => { const c = pending.current; pending.current = null; return c }, [])
   const value = useMemo<VoiceCtx>(
-    () => ({ status, engine, chosen, setChosen, micLabel, activity, noiseMode, setNoiseMode, heard, reply, toggle, say, setHandler, setPending, takePending }),
-    [status, engine, chosen, setChosen, micLabel, activity, noiseMode, setNoiseMode, heard, reply, toggle, say, setHandler, setPending, takePending],
+    () => ({ status, engine, chosen, setChosen, micLabel, activity, heard, reply, toggle, say, setHandler, setPending, takePending }),
+    [status, engine, chosen, setChosen, micLabel, activity, heard, reply, toggle, say, setHandler, setPending, takePending],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

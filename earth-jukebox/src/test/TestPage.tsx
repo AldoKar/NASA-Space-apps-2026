@@ -48,7 +48,6 @@ const COMMAND_TEXT: Record<Command['type'], (c: never) => string> = {
   describe: () => 'Describe this moment',
   help: () => 'Help',
   stopListening: () => 'Stop listening',
-  noiseMode: (c: { on: boolean }) => (c.on ? 'Noise mode' : 'Normal mode'),
 }
 const describeCommand = (c: Command) => (COMMAND_TEXT[c.type] as (c: Command) => string)(c)
 const now = () => new Date().toLocaleTimeString('en-US', { hour12: false })

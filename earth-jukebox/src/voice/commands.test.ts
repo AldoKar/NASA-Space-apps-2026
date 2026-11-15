@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { afterWakeWord, lastWords, parseCommand } from './commands'
+import { lastWords, parseCommand } from './commands'
 import { forSpeech, isEcho } from './speak'
 import { VOCAB } from './vocab'
 import source from './commands.ts?raw'
@@ -78,20 +78,9 @@ describe('entiende variantes y errores de una letra', () => {
 })
 
 describe('ruido', () => {
-  it('se queda con lo que va después de "Symphony"', () => {
-    expect(afterWakeWord('so then what happened Symphony pause')).toBe('pause')
-    expect(afterWakeWord('symphonie skip 20 seconds')).toBe('skip 20 seconds')
-    expect(afterWakeWord('nobody said the word')).toBeNull()
-  })
   it('el comando al final de una plática larga se encuentra', () => {
     const merged = 'and then I told John to go get the food because it was getting late pause the simulator'
     expect(parseCommand(lastWords(merged))).toEqual({ type: 'pause' })
-  })
-  it('modo ruido y modo normal', () => {
-    expect(parseCommand('noise mode')).toEqual({ type: 'noiseMode', on: true })
-    expect(parseCommand("it's too noisy")).toEqual({ type: 'noiseMode', on: true })
-    expect(parseCommand('normal mode')).toEqual({ type: 'noiseMode', on: false })
-    expect(parseCommand('turn off noise mode')).toEqual({ type: 'noiseMode', on: false })
   })
 })
 
@@ -112,7 +101,7 @@ describe('isEcho', () => {
 describe('vocabulario', () => {
   it('incluye todas las palabras que usa el intérprete', () => {
     const body = source
-      .slice(source.indexOf('const LAYER_WORDS'), source.indexOf('/** ¿Es la palabra clave'))
+      .slice(source.indexOf('const LAYER_WORDS'), source.indexOf('/** Las últimas palabras de una frase'))
       .replace(/^\s*\/\/.*$/gm, '')
     const words = new Set<string>()
     for (const m of body.matchAll(/\/((?:\\.|[^/\n])+)\//g)) {
